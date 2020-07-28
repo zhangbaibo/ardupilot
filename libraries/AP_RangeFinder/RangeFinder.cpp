@@ -36,6 +36,7 @@
 #include "AP_RangeFinder_Wasp.h"
 #include "AP_RangeFinder_Benewake.h"
 #include "AP_RangeFinder_Benewake_TFMiniPlus.h"
+#include "AP_RangeFinder_NRA24.h"
 #include <AP_BoardConfig/AP_BoardConfig.h>
 
 extern const AP_HAL::HAL &hal;
@@ -773,6 +774,11 @@ void RangeFinder::detect_instance(uint8_t instance, uint8_t& serial_instance)
             drivers[instance] = new AP_RangeFinder_Benewake(state[instance], serial_manager, serial_instance++, AP_RangeFinder_Benewake::BENEWAKE_TFmini);
         }
         break;
+    case RangeFinder_TYPE_NRA24:
+            if (AP_RangeFinder_NRA24::detect(serial_manager, serial_instance)) {
+                drivers[instance] = new AP_RangeFinder_NRA24(state[instance], serial_manager, serial_instance++);
+            }
+            break;
     default:
         break;
     }
