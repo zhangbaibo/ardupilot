@@ -2,6 +2,8 @@
 #include "AC_PosControl.h"
 #include <AP_Math/AP_Math.h>
 #include <DataFlash/DataFlash.h>
+#include <GCS_MAVLink/GCS.h>
+//#include <GCS_MAVLink/GCS.h>
 
 extern const AP_HAL::HAL& hal;
 
@@ -658,7 +660,7 @@ void AC_PosControl::set_speed_xy(float speed_cms)
     }
 }
 
-/// set_pos_target in cm from home
+/// set_pos_target in cm from home以起飞点为参考点设置目标位置，单位为厘米
 void AC_PosControl::set_pos_target(const Vector3f& position)
 {
     _pos_target = position;
@@ -815,10 +817,10 @@ void AC_PosControl::update_xy_controller(float ekfNavVelGainScaler)
     calc_leash_length_xy();
 
     // translate any adjustments from pilot to loiter target
-    desired_vel_to_pos(dt);
+    desired_vel_to_pos(dt);//由渴望速度得到目标位置
 
     // run horizontal position controller
-    run_xy_controller(dt, ekfNavVelGainScaler);
+    run_xy_controller(dt, ekfNavVelGainScaler);//由目标位置得到目标角度
 
     // update xy update time
     _last_update_xy_us = now_us;
@@ -959,7 +961,7 @@ void AC_PosControl::calc_leash_length_xy()
 }
 
 /// move velocity target using desired acceleration
-void AC_PosControl::desired_accel_to_vel(float nav_dt)
+void AC_PosControl::desired_accel_to_vel(float nav_dt)  //没有被调用
 {
     // range check nav_dt
     if (nav_dt < 0) {
@@ -970,7 +972,7 @@ void AC_PosControl::desired_accel_to_vel(float nav_dt)
     if (_flags.reset_desired_vel_to_pos) {
         _flags.reset_desired_vel_to_pos = false;
     } else {
-        _vel_desired.x += _accel_desired.x * nav_dt;
+        _vel_desired.x += _accel_desired.x * nav_dt;//渴望加速度得到渴望速度
         _vel_desired.y += _accel_desired.y * nav_dt;
     }
 }
@@ -987,7 +989,7 @@ void AC_PosControl::desired_vel_to_pos(float nav_dt)
     if (_flags.reset_desired_vel_to_pos) {
         _flags.reset_desired_vel_to_pos = false;
     } else {
-        _pos_target.x += _vel_desired.x * nav_dt;
+        _pos_target.x += _vel_desired.x * nav_dt;//由渴望速度得到目标位置，_vel_desired的值始终为0
         _pos_target.y += _vel_desired.y * nav_dt;
     }
 }
@@ -1008,24 +1010,24 @@ void AC_PosControl::run_xy_controller(float dt, float ekfNavVelGainScaler)
         _vel_target.y = 0.0f;
     }else{
         // calculate distance error
-        _pos_error.x = _pos_target.x - curr_pos.x;
+        _pos_error.x = _pos_target.x - curr_pos.x;//计算位置差，_pos_target值从advance_wp_target_along_track获取
         _pos_error.y = _pos_target.y - curr_pos.y;
 
         // Constrain _pos_error and target position
         // Constrain the maximum length of _vel_target to the maximum position correction velocity
         // TODO: replace the leash length with a user definable maximum position correction
-        if (limit_vector_length(_pos_error.x, _pos_error.y, _leash))
+        if (limit_vector_length(_pos_error.x, _pos_error.y, _leash)) //限制最大位置差的值
         {
             _pos_target.x = curr_pos.x + _pos_error.x;
             _pos_target.y = curr_pos.y + _pos_error.y;
         }
         _distance_to_target = norm(_pos_error.x, _pos_error.y);
 
-        _vel_target = sqrt_controller(_pos_error, kP, _accel_cms);
+        _vel_target = sqrt_controller(_pos_error, kP, _accel_cms);//位置差得到目标速度
     }
 
-    // add velocity feed-forward
-    _vel_target.x += _vel_desired.x;
+    // add velocity feed-forward添加速度前馈
+    _vel_target.x += _vel_desired.x;//目标速度
     _vel_target.y += _vel_desired.y;
 
     // the following section converts desired velocities in lat/lon directions to accelerations in lat/lon frame
@@ -1036,11 +1038,11 @@ void AC_PosControl::run_xy_controller(float dt, float ekfNavVelGainScaler)
     if (_flags.vehicle_horiz_vel_override) {
         _flags.vehicle_horiz_vel_override = false;
     } else {
-        _vehicle_horiz_vel.x = _inav.get_velocity().x;
+        _vehicle_horiz_vel.x = _inav.get_velocity().x;//当前速度
         _vehicle_horiz_vel.y = _inav.get_velocity().y;
     }
 
-    // calculate velocity error
+    // calculate velocity error速度差
     _vel_error.x = _vel_target.x - _vehicle_horiz_vel.x;
     _vel_error.y = _vel_target.y - _vehicle_horiz_vel.y;
     // TODO: constrain velocity error and velocity target
@@ -1080,8 +1082,8 @@ void AC_PosControl::run_xy_controller(float dt, float ekfNavVelGainScaler)
     _accel_target.x = _accel_target_filter.get().x;
     _accel_target.y = _accel_target_filter.get().y;
 
-    // Add feed forward into the target acceleration output
-    _accel_target.x += _accel_desired.x;
+    // Add feed forward into the target acceleration output在目标加速度输出中添加前馈
+    _accel_target.x += _accel_desired.x;//目标加速度
     _accel_target.y += _accel_desired.y;
 
     // the following section converts desired accelerations provided in lat/lon frame to roll/pitch angles
@@ -1091,8 +1093,8 @@ void AC_PosControl::run_xy_controller(float dt, float ekfNavVelGainScaler)
     float accel_max = MIN(GRAVITY_MSS * 100.0f * tanf(ToRad(angle_max * 0.01f)), POSCONTROL_ACCEL_XY_MAX);
     _limit.accel_xy = limit_vector_length(_accel_target.x, _accel_target.y, accel_max);
 
-    // update angle targets that will be passed to stabilize controller
-    accel_to_lean_angles(_accel_target.x, _accel_target.y, _roll_target, _pitch_target);
+    // update angle targets that will be passed to stabilize controller更新将被传递到稳定控制器的角度目标
+    accel_to_lean_angles(_accel_target.x, _accel_target.y, _roll_target, _pitch_target);//目标加速度得到目标角度
 }
 
 // get_lean_angles_to_accel - convert roll, pitch lean angles to lat/lon frame accelerations in cm/s/s

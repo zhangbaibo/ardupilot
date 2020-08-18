@@ -223,16 +223,16 @@ void AP_Mission::update()
         return;
     }
 
-    // check if we have an active nav command
+    // check if we have an active nav command检查我们是否有一个主动的导航命令
     if (!_flags.nav_cmd_loaded || _nav_cmd.index == AP_MISSION_CMD_INDEX_NONE) {
         // advance in mission if no active nav command
         if (!advance_current_nav_cmd()) {
-            // failure to advance nav command means mission has completed
-            complete();
+            // failure to advance nav command means mission has completed 没有前进导航指令意味着任务已经完成
+            complete(); //结束任务
             return;
         }
     }else{
-        // run the active nav command
+        // run the active nav command 检查nav命令是否执行完毕
         if (_cmd_verify_fn(_nav_cmd)) {
             // market _nav_cmd as complete (it will be started on the next iteration)
             _flags.nav_cmd_loaded = false;
@@ -249,10 +249,10 @@ void AP_Mission::update()
     if (!_flags.do_cmd_loaded) {
         advance_current_do_cmd();
     }else{
-        // run the active do command
+        // run the active do command 检查do命令是否执行完毕
         if (_cmd_verify_fn(_do_cmd)) {
             // market _nav_cmd as complete (it will be started on the next iteration)
-            _flags.do_cmd_loaded = false;
+            _flags.do_cmd_loaded = false; //标记命令执行完毕
         }
     }
 }
@@ -1411,7 +1411,7 @@ bool AP_Mission::advance_current_nav_cmd()
 
     // get starting point for search
     cmd_index = _nav_cmd.index;
-    if (cmd_index == AP_MISSION_CMD_INDEX_NONE) {
+    if (cmd_index == AP_MISSION_CMD_INDEX_NONE) {  //航点索引超限
         // start from beginning of the mission command list
         cmd_index = AP_MISSION_FIRST_REAL_COMMAND;
     }else{
@@ -1423,34 +1423,34 @@ bool AP_Mission::advance_current_nav_cmd()
     uint8_t max_loops = 255;
 
     // search until we find next nav command or reach end of command list
-    while (!_flags.nav_cmd_loaded) {
+    while (!_flags.nav_cmd_loaded) { //搜索直到我们找到下一个导航命令或到达命令列表的结束
         // get next command
-        if (!get_next_cmd(cmd_index, cmd, true)) {
+        if (!get_next_cmd(cmd_index, cmd, true)) {//获取下一个航点命令
             return false;
         }
 
         // check if navigation or "do" command
-        if (is_nav_cmd(cmd)) {
-            // save previous nav command index
+        if (is_nav_cmd(cmd)) {  //如果是导航命令
+            // save previous nav command index 保存以前的导航命令索引
             _prev_nav_cmd_id = _nav_cmd.id;
             _prev_nav_cmd_index = _nav_cmd.index;
             // save separate previous nav command index if it contains lat,long,alt
             if (!(cmd.content.location.lat == 0 && cmd.content.location.lng == 0)) {
-                _prev_nav_cmd_wp_index = _nav_cmd.index;
+                _prev_nav_cmd_wp_index = _nav_cmd.index;  //保存上一个航点索引
             }
             // set current navigation command and start it
             _nav_cmd = cmd;
             _flags.nav_cmd_loaded = true;
-            _cmd_start_fn(_nav_cmd);
-        }else{
+            _cmd_start_fn(_nav_cmd);  //启动这个导航命令，直接通过指针调用mode_auto.cpp的函数
+        }else{  //do命令
             // set current do command and start it (if not already set)
-            if (!_flags.do_cmd_loaded) {
+            if (!_flags.do_cmd_loaded) { //如果没有加载do命令
                 _do_cmd = cmd;
                 _flags.do_cmd_loaded = true;
-                _cmd_start_fn(_do_cmd);
+                _cmd_start_fn(_do_cmd); //启动do命令
             } else {
                 // protect against endless loops of do-commands
-                if (max_loops-- == 0) {
+                if (max_loops-- == 0) { //避免死循环
                     return false;
                 }
             }

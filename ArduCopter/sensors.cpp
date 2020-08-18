@@ -36,7 +36,7 @@ void Copter::read_rangefinder(void)
     int16_t temp_alt = rangefinder.distance_cm_orient(ROTATION_PITCH_270);
 
  #if RANGEFINDER_TILT_CORRECTION == ENABLED
-    // correct alt for angle of the rangefinder
+    // correct alt for angle of the rangefinder 校正测距仪角度的alt值
     temp_alt = (float)temp_alt * MAX(0.707f, ahrs.get_rotation_body_to_ned().c.z);
  #endif
 

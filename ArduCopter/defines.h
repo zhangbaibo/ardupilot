@@ -12,7 +12,7 @@
 
 // Autopilot Yaw Mode enumeration
 enum autopilot_yaw_mode {
-    AUTO_YAW_HOLD =             0,  // pilot controls the heading
+    AUTO_YAW_HOLD =             0,  // pilot controls the heading 飞行员控制航向
     AUTO_YAW_LOOK_AT_NEXT_WP =  1,  // point towards next waypoint (no pilot input accepted)
     AUTO_YAW_ROI =              2,  // point towards a location held in roi (no pilot input accepted)
     AUTO_YAW_FIXED =            3,  // point towards a particular angle (no pilot input accepted)

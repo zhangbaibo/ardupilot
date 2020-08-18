@@ -389,7 +389,7 @@ protected:
     float       _accel_z_cms;           // max vertical acceleration in cm/s/s
     float       _accel_last_z_cms;      // max vertical acceleration in cm/s/s
     float       _accel_cms;             // max horizontal acceleration in cm/s/s
-    float       _leash;                 // horizontal leash length in cm.  target will never be further than this distance from the vehicle
+    float       _leash;                 // horizontal leash length in cm.  target will never be further than this distance from the vehicle 下一时刻目标与飞行器的距离不会超过这个距离
     float       _leash_down_z;          // vertical leash down in cm.  target will never be further than this distance below the vehicle
     float       _leash_up_z;            // vertical leash up in cm.  target will never be further than this distance above the vehicle
 

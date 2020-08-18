@@ -202,7 +202,7 @@ void Copter::ModeAuto::wp_start(const Location_Class& dest_loc)
     // send target to waypoint controller
     if (!wp_nav->set_wp_destination(dest_loc)) {
         // failure to set destination can only be because of missing terrain data
-        copter.failsafe_terrain_on_event();
+        copter.failsafe_terrain_on_event(); //未能设置目的地只能是由于缺少地形数据
         return;
     }
 
@@ -368,7 +368,7 @@ void Copter::ModeAuto::payload_place_start()
 }
 
 // start_command - this function will be called when the ap_mission lib wishes to start a new command
-bool Copter::ModeAuto::start_command(const AP_Mission::Mission_Command& cmd)
+bool Copter::ModeAuto::start_command(const AP_Mission::Mission_Command& cmd) //开始执行任务
 {
     // To-Do: logging when new commands start/end
     if (copter.should_log(MASK_LOG_CMD)) {
@@ -544,6 +544,8 @@ bool Copter::ModeAuto::start_command(const AP_Mission::Mission_Command& cmd)
 
 // verify_command_callback - callback function called from ap-mission at 10hz or higher when a command is being run
 //      we double check that the flight mode is AUTO to avoid the possibility of ap-mission triggering actions while we're not in AUTO mode
+//verify_command_callback -在运行命令时从apo -mission以10hz或更高的频率调用的回调函数
+//我们再次检查飞行模式是否为自动模式，以避免在非自动模式下ap-mission触发动作的可能性
 bool Copter::ModeAuto::verify_command_callback(const AP_Mission::Mission_Command& cmd)
 {
     if (copter.flightmode == &copter.mode_auto) {
@@ -560,7 +562,7 @@ bool Copter::ModeAuto::verify_command_callback(const AP_Mission::Mission_Command
 }
 
 // exit_mission - function that is called once the mission completes
-void Copter::ModeAuto::exit_mission()
+void Copter::ModeAuto::exit_mission() //完成任务，关闭任务
 {
     // play a tone
     AP_Notify::events.mission_complete = 1;
@@ -794,14 +796,14 @@ void Copter::ModeAuto::wp_run()
         }
     }
 
-    // set motors to full range
+    // set motors to full range 将电机调至全量程
     motors->set_desired_spool_state(AP_Motors::DESIRED_THROTTLE_UNLIMITED);
 
     // run waypoint controller
-    copter.failsafe_terrain_set_status(wp_nav->update_wpnav());
+    copter.failsafe_terrain_set_status(wp_nav->update_wpnav());//航点控制器
 
     // call z-axis position controller (wpnav should have already updated it's alt target)
-    pos_control->update_z_controller();
+    pos_control->update_z_controller();//调用z轴位置控制器(wpnav应该已经更新了它的alt目标)
 
     // call attitude controller
     if (auto_yaw.mode() == AUTO_YAW_HOLD) {
@@ -1063,7 +1065,7 @@ void Copter::ModeAuto::do_takeoff(const AP_Mission::Mission_Command& cmd)
     takeoff_start(cmd.content.location);
 }
 
-// do_nav_wp - initiate move to next waypoint
+// do_nav_wp - initiate move to next waypoint 执行航点任务
 void Copter::ModeAuto::do_nav_wp(const AP_Mission::Mission_Command& cmd)
 {
     Location_Class target_loc(cmd.content.location);
@@ -1074,9 +1076,9 @@ void Copter::ModeAuto::do_nav_wp(const AP_Mission::Mission_Command& cmd)
         target_loc.lat = current_loc.lat;
         target_loc.lng = current_loc.lng;
     }
-    // use current altitude if not provided
+    // use current altitude if not provided 如果没有提供，请使用当前高度
     if (target_loc.alt == 0) {
-        // set to current altitude but in command's alt frame
+        // set to current altitude but in command's alt frame 设置为当前高度，但在命令的alt框架
         int32_t curr_alt;
         if (current_loc.get_alt_cm(target_loc.get_alt_frame(),curr_alt)) {
             target_loc.set_alt_cm(curr_alt, target_loc.get_alt_frame());
@@ -1094,12 +1096,12 @@ void Copter::ModeAuto::do_nav_wp(const AP_Mission::Mission_Command& cmd)
     // Set wp navigation target
     wp_start(target_loc);
 
-    // if no delay as well as not final waypoint set the waypoint as "fast"
+    // if no delay as well as not final waypoint set the waypoint as "fast" 如果没有延迟，也没有最终路径点，将路径点设置为“快速”
     AP_Mission::Mission_Command temp_cmd;
     bool fast_waypoint = false;
     if (loiter_time_max == 0 && copter.mission.get_next_nav_cmd(cmd.index+1, temp_cmd)) {
 
-        // whether vehicle should stop at the target position depends upon the next command
+        // whether vehicle should stop at the target position depends upon the next command 车辆是否停在目标位置取决于下一个命令
         switch (temp_cmd.id) {
             case MAV_CMD_NAV_WAYPOINT:
             case MAV_CMD_NAV_LOITER_UNLIM:
@@ -1805,7 +1807,7 @@ bool Copter::ModeAuto::verify_yaw()
     return (labs(wrap_180_cd(ahrs.yaw_sensor-auto_yaw.yaw())) <= 200);
 }
 
-// verify_nav_wp - check if we have reached the next way point
+// verify_nav_wp - check if we have reached the next way point 检查是否完成该航点
 bool Copter::ModeAuto::verify_nav_wp(const AP_Mission::Mission_Command& cmd)
 {
     // check if we have reached the waypoint

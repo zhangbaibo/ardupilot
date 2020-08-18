@@ -110,7 +110,7 @@ bool AP_RangeFinder_NRA24::get_reading(uint16_t &reading_cm) {
 	}
 
 	if (count > 0) {
-		// return average distance of readings
+		// return average distance of readings 求均值
 		reading_cm = sum_cm / count;
 		return true;
 	}
@@ -130,3 +130,20 @@ void AP_RangeFinder_NRA24::update(void) {
 		set_status(RangeFinder::RangeFinder_NoData);
 	}
 }
+/*
+	//--------------------------------------------------------------------------------------------------------------------------------------------------
+	//改变航线速度
+	if ((AP_HAL::millis() - time_offset) > 10000) {
+		if (is_change) {
+		//	wp_nav->set_speed_xy(100.0f);    //测试控制航线速度
+		} else {
+		//	wp_nav->set_speed_xy(800.0f);    //测试控制航线速度
+		}
+		is_change = !is_change;
+		time_offset = AP_HAL::millis();
+	}
+	//--------------------------------------------------------------------------------------------------------------------------------------------------
+
+*/
+//--------------------------------------------------------------------------------------------------------------------------------------------------
+// gcs().send_text(MAV_SEVERITY_ALERT, "YDHY:set yaw to target");
