@@ -100,6 +100,10 @@ bool AP_RangeFinder_NRA24::get_reading(uint16_t &reading_cm) {
 				if (checksum == (linebuf[11] & 0xFF)) {
 					// calculate distance
 					uint16_t dist = ((uint16_t) linebuf[6] << 8) | linebuf[7];
+					if(RangeFinder::valueCount>1){
+						RangeFinder::valueCount = 0;
+					}
+					RangeFinder::myAlt[RangeFinder::valueCount++] = dist;
 					sum_cm += dist;
 					count++;
 				}

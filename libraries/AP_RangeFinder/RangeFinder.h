@@ -168,7 +168,8 @@ public:
     bool pre_arm_check() const;
 
     static RangeFinder *get_singleton(void) { return _singleton; }
-
+    static int valueCount;
+    static uint16_t myAlt[2];
 
 private:
     static RangeFinder *_singleton;

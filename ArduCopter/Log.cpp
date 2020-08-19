@@ -486,6 +486,22 @@ void Copter::Log_Write_GuidedTarget(uint8_t target_type, const Vector3f& pos_tar
     DataFlash.WriteBlock(&pkt, sizeof(pkt));
 }
 
+struct PACKED log_MyLog {
+	LOG_PACKET_HEADER;
+	uint64_t time_us;
+	uint16_t value;
+};
+
+void Copter::Log_Write_MyLog(uint16_t val)
+{
+    struct log_MyLog pkt = {
+        LOG_PACKET_HEADER_INIT(LOG_MyLog_MSG),
+        time_us         : AP_HAL::micros64(),
+		value           : val
+    };
+    DataFlash.WriteBlock(&pkt, sizeof(pkt));
+}
+
 // type and unit information can be found in
 // libraries/DataFlash/Logstructure.h; search for "log_Units" for
 // units and "Format characters" for field type information
@@ -531,6 +547,8 @@ const struct LogStructure Copter::log_structure[] = {
 #endif
     { LOG_GUIDEDTARGET_MSG, sizeof(log_GuidedTarget),
       "GUID",  "QBffffff",    "TimeUS,Type,pX,pY,pZ,vX,vY,vZ", "s-mmmnnn", "F-000000" },
+	{ LOG_MyLog_MSG, sizeof(log_MyLog),
+	  "MYVALUE",  "QH",    "TimeUS,value", "s--", "F--" },
 };
 
 void Copter::Log_Write_Vehicle_Startup_Messages()

@@ -26,6 +26,13 @@ void Copter::read_rangefinder(void)
 #if RANGEFINDER_ENABLED == ENABLED
     rangefinder.update();
 
+    if(rangefinder.valueCount == 2){
+    	Log_Write_MyLog(rangefinder.myAlt[0]);
+    	Log_Write_MyLog(rangefinder.myAlt[1]);
+    }else if(rangefinder.valueCount == 1){
+    	Log_Write_MyLog(rangefinder.myAlt[0]);
+    }
+    rangefinder.valueCount = 0;
     if (rangefinder.num_sensors() > 0 &&
         should_log(MASK_LOG_CTUN)) {
         DataFlash.Log_Write_RFND(rangefinder);

@@ -812,6 +812,7 @@ private:
     void Log_Write_Precland();
     void Log_Write_GuidedTarget(uint8_t target_type, const Vector3f& pos_target, const Vector3f& vel_target);
     void Log_Write_Vehicle_Startup_Messages();
+    void Log_Write_MyLog(uint16_t val);
     void log_init(void);
 
     // mode.cpp

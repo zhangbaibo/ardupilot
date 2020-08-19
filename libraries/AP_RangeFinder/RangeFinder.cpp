@@ -552,6 +552,8 @@ const AP_Param::GroupInfo RangeFinder::var_info[] = {
 
 const AP_Param::GroupInfo *RangeFinder::backend_var_info[RANGEFINDER_MAX_INSTANCES];
 
+uint16_t RangeFinder::myAlt[] = {};
+int RangeFinder::valueCount = 0;
 RangeFinder::RangeFinder(AP_SerialManager &_serial_manager, enum Rotation orientation_default) :
     num_instances(0),
     estimated_terrain_height(0),
