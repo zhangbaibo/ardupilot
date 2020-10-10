@@ -160,7 +160,7 @@ float Copter::get_non_takeoff_throttle()
 
 // get_surface_tracking_climb_rate - hold copter at the desired distance above the ground
 //      returns climb rate (in cm/s) which should be passed to the position controller
-float Copter::get_surface_tracking_climb_rate(int16_t target_rate, float current_alt_target, float dt)
+/*float Copter::get_surface_tracking_climb_rate(int16_t target_rate, float current_alt_target, float dt)
 {
 #if RANGEFINDER_ENABLED == ENABLED
     if (!copter.rangefinder_alt_ok()) {
@@ -188,14 +188,14 @@ float Copter::get_surface_tracking_climb_rate(int16_t target_rate, float current
         target_rangefinder_alt += target_rate * dt;
     }
 
-    /*
+
       handle rangefinder glitches. When we get a rangefinder reading
       more than RANGEFINDER_GLITCH_ALT_CM different from the current
       rangefinder reading then we consider it a glitch and reject
       until we get RANGEFINDER_GLITCH_NUM_SAMPLES samples in a
       row. When that happens we reset the target altitude to the new
       reading
-     */
+
     int32_t glitch_cm = rangefinder_state.alt_cm - target_rangefinder_alt;
     if (glitch_cm >= RANGEFINDER_GLITCH_ALT_CM) {
         rangefinder_state.glitch_count = MAX(rangefinder_state.glitch_count+1,1);
@@ -221,6 +221,33 @@ float Copter::get_surface_tracking_climb_rate(int16_t target_rate, float current
 
     // return combined pilot climb rate + rate to correct rangefinder alt error
     return (target_rate + velocity_correction);
+#else
+    return (float)target_rate;
+#endif
+}*/
+
+float Copter::get_surface_tracking_climb_rate(int16_t target_rate, float current_alt_target, float dt)
+{
+#if RANGEFINDER_ENABLED == ENABLED
+    if (!copter.rangefinder_alt_ok()) {
+        return target_rate;
+    }
+
+    float distance_error;
+    float velocity_correction;
+    float current_alt = inertial_nav.get_altitude();
+
+    target_rangefinder_alt_used = true;
+
+    // adjust rangefinder target alt if motors have not hit their limits
+    if ((target_rate<0 && !motors->limit.throttle_lower) || (target_rate>0 && !motors->limit.throttle_upper)) {
+        target_rangefinder_alt += target_rate * dt;
+    }
+	distance_error = (target_rangefinder_alt - rangefinder_state.alt_cm) - (current_alt_target - current_alt);
+	velocity_correction = distance_error * g.rangefinder_gain;
+	velocity_correction = constrain_float(velocity_correction, -100, 200);
+	return (target_rate + velocity_correction);
+
 #else
     return (float)target_rate;
 #endif
