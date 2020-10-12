@@ -119,6 +119,29 @@ void AP_Mission::resume()
     // Note: if there is no active command then the mission must have been stopped just after the previous nav command completed
     //      update will take care of finding and starting the nav command
     if (_flags.nav_cmd_loaded) {
+		isIndexDown = 1;
+		struct Location loc;
+		_ahrs.get_position(loc); //获取当前位置
+		float relativeAlt;
+		_ahrs.get_hagl(relativeAlt); //获取相对高度
+		if(_nav_cmd.content.location.flags.relative_alt){ //如果航线是相对高度
+			if((relativeAlt*100)<=_nav_cmd.content.location.alt){ //如果当前高度小于目标航点高度则垂直爬升至目标高度，否则保持目前高度飞行至目标航点
+				_nav_cmd.content.location.lat = loc.lat;
+				_nav_cmd.content.location.lng = loc.lng;
+			}else{
+				_nav_cmd.content.location.alt = (int32_t)(relativeAlt*100);
+			}
+		}else if(_nav_cmd.content.location.flags.terrain_alt){
+
+		}else{
+			if(loc.alt<=_nav_cmd.content.location.alt){ //如果当前高度小于目标航点高度则垂直爬升至目标高度，否则保持目前高度飞行至目标航点
+				_nav_cmd.content.location.lat = loc.lat;
+				_nav_cmd.content.location.lng = loc.lng;
+			}else{
+				_nav_cmd.content.location.alt = loc.alt;
+			}
+		}
+		//gcs().send_text(MAV_SEVERITY_ALERT, "3alt:%d,lat:%d,lng:%d",_nav_cmd.content.location.alt,_nav_cmd.content.location.lat,_nav_cmd.content.location.lng);
         _cmd_start_fn(_nav_cmd);
     }
 
@@ -1381,6 +1404,8 @@ void AP_Mission::complete()
     // flag mission as complete
     _flags.state = MISSION_COMPLETE;
 
+    //gcs().send_text(MAV_SEVERITY_ALERT, "MISSION_COMPLETE");
+    isFirstClimb = 1; //完成航线后为下一次起飞做准备
     // callback to main program's mission complete function
     _mission_complete_fn();
 }
@@ -1417,6 +1442,10 @@ bool AP_Mission::advance_current_nav_cmd()
     }else{
         // start from one position past the current nav command
         cmd_index++;
+        if(isIndexDown){ //将航点号减一，重复执行上次的航点，因为上次执行的是原地爬升航点
+        	isIndexDown = 0;
+        	cmd_index--;
+        }
     }
 
     // avoid endless loops
@@ -1441,6 +1470,32 @@ bool AP_Mission::advance_current_nav_cmd()
             // set current navigation command and start it
             _nav_cmd = cmd;
             _flags.nav_cmd_loaded = true;
+            if(isFirstClimb){ //检测是否为起飞后第一次爬升
+            	isFirstClimb = 0;
+            	isIndexDown = 1;
+            	struct Location loc;
+				_ahrs.get_position(loc); //获取当前位置
+				float relativeAlt;
+				_ahrs.get_hagl(relativeAlt); //获取相对高度
+				if(_nav_cmd.content.location.flags.relative_alt){ //如果航线是相对高度
+					if((relativeAlt*100)<=_nav_cmd.content.location.alt){ //如果当前高度小于目标航点高度则垂直爬升至目标高度，否则保持目前高度飞行至目标航点
+						_nav_cmd.content.location.lat = loc.lat;
+						_nav_cmd.content.location.lng = loc.lng;
+					}else{
+						_nav_cmd.content.location.alt = (int32_t)(relativeAlt*100);
+					}
+				}else if(_nav_cmd.content.location.flags.terrain_alt){
+
+				}else{
+					if(loc.alt<=_nav_cmd.content.location.alt){ //如果当前高度小于目标航点高度则垂直爬升至目标高度，否则保持目前高度飞行至目标航点
+						_nav_cmd.content.location.lat = loc.lat;
+						_nav_cmd.content.location.lng = loc.lng;
+					}else{
+						_nav_cmd.content.location.alt = loc.alt;
+					}
+				}
+                //gcs().send_text(MAV_SEVERITY_ALERT, "2alt:%d,lat:%d,lng:%d",_nav_cmd.content.location.alt,_nav_cmd.content.location.lat,_nav_cmd.content.location.lng);
+            }
             _cmd_start_fn(_nav_cmd);  //启动这个导航命令，直接通过指针调用mode_auto.cpp的函数
         }else{  //do命令
             // set current do command and start it (if not already set)

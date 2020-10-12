@@ -551,4 +551,6 @@ private:
 
     // last time that mission changed
     uint32_t _last_change_time_ms;
+    bool isFirstClimb = 1;
+    bool isIndexDown = 0;
 };
