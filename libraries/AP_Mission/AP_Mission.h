@@ -530,6 +530,10 @@ private:
     AP_Int16                _cmd_total;  // total number of commands in the mission
     AP_Int8                 _restart;   // controls mission starting point when entering Auto mode (either restart from beginning of mission or resume from last command run)
     AP_Int16                _options;    // bitmask options for missions, currently for mission clearing on reboot but can be expanded as required
+    AP_Int16 				_break_index; //断点的航点号
+    AP_Int32 				_break_alt;
+    AP_Int32 				_break_lat;
+    AP_Int32 				_break_lng;
 
     // pointer to main program functions
     mission_cmd_fn_t        _cmd_start_fn;  // pointer to function which will be called when a new command is started
@@ -553,4 +557,5 @@ private:
     uint32_t _last_change_time_ms;
     bool isFirstClimb = 1;
     bool isIndexDown = 0;
+    uint8_t breakState = 0; //0 默认状态，1 切入高度检查，2 飞向中断点，3 已到达中断点
 };

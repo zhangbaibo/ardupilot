@@ -29,6 +29,11 @@ const AP_Param::GroupInfo AP_Mission::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("OPTIONS",  2, AP_Mission, _options, AP_MISSION_OPTIONS_DEFAULT),
 
+	AP_GROUPINFO("BREAK_INDEX", 3, AP_Mission, _break_index, 0),  //断点的航点号
+	AP_GROUPINFO("BREAK_ALT", 4, AP_Mission, _break_alt, 0),
+	AP_GROUPINFO("BREAK_LAT", 5, AP_Mission, _break_lat, 0),
+	AP_GROUPINFO("BREAK_LNG", 6, AP_Mission, _break_lng, 0),
+
     AP_GROUPEND
 };
 
@@ -79,6 +84,28 @@ void AP_Mission::start()
 void AP_Mission::stop()
 {
     _flags.state = MISSION_STOPPED;
+
+    //如果当前航点大于1（排除起飞过程中）且不是返航航点（排除在返航过程中）且上个中断点已完成，则进行记录中断点
+    if(_nav_cmd.index > 1 && _nav_cmd.id != MAV_CMD_NAV_RETURN_TO_LAUNCH && (breakState == 3 || breakState == 0)){
+    	struct Location loc;
+		_ahrs.get_position(loc); //获取当前位置
+		float relativeAlt;
+		_ahrs.get_hagl(relativeAlt); //获取相对高度
+    	if(_nav_cmd.content.location.flags.relative_alt){ //如果航线是相对高度
+        	_break_index.set_and_save(_nav_cmd.index);
+        	_break_lat.set_and_save(loc.lat);
+        	_break_lng.set_and_save(loc.lng);
+    		_break_alt.set_and_save((int32_t)(relativeAlt*100));
+    	}else if(_nav_cmd.content.location.flags.terrain_alt){
+
+		}else{
+			_break_index.set_and_save(_nav_cmd.index);
+			_break_lat.set_and_save(loc.lat);
+			_break_lng.set_and_save(loc.lng);
+			_break_alt.set_and_save(loc.alt);
+    	}
+    }
+	breakState = 0; //复位中断点状态
 }
 
 /// resume - continues the mission execution from where we last left off
@@ -120,6 +147,14 @@ void AP_Mission::resume()
     //      update will take care of finding and starting the nav command
     if (_flags.nav_cmd_loaded) {
 		isIndexDown = 1;
+		if(_break_index != 0){ //如果有中断点则第一次执行中断点
+			breakState = 1;
+			_nav_cmd.index = _break_index;
+			_nav_cmd.id = MAV_CMD_NAV_WAYPOINT;
+			_nav_cmd.content.location.lat = _break_lat;
+			_nav_cmd.content.location.lng = _break_lng;
+			_nav_cmd.content.location.alt = _break_alt;
+		}
 		struct Location loc;
 		_ahrs.get_position(loc); //获取当前位置
 		float relativeAlt;
@@ -235,6 +270,7 @@ void AP_Mission::truncate(uint16_t index)
     if ((unsigned)_cmd_total > index) {        
         _cmd_total.set_and_save(index);
     }
+    _break_index.set_and_save(0); //新航线上传则取消中断点
 }
 
 /// update - ensures the command queues are loaded with the next command and calls main programs command_init and command_verify functions to progress the mission
@@ -287,7 +323,7 @@ void AP_Mission::update()
 /// add_cmd - adds a command to the end of the command list and writes to storage
 ///     returns true if successfully added, false on failure
 ///     cmd.index is updated with it's new position in the mission
-bool AP_Mission::add_cmd(Mission_Command& cmd)
+bool AP_Mission::add_cmd(Mission_Command& cmd) //将航点写入存储器
 {
     // attempt to write the command to storage
     bool ret = write_cmd_to_storage(_cmd_total, cmd);
@@ -296,7 +332,7 @@ bool AP_Mission::add_cmd(Mission_Command& cmd)
         // update command's index
         cmd.index = _cmd_total;
         // increment total number of commands
-        _cmd_total.set_and_save(_cmd_total + 1);
+        _cmd_total.set_and_save(_cmd_total + 1); //航点总数加一
     }
 
     return ret;
@@ -528,12 +564,12 @@ bool AP_Mission::read_cmd_from_storage(uint16_t index, Mission_Command& cmd) con
 bool AP_Mission::write_cmd_to_storage(uint16_t index, Mission_Command& cmd)
 {
     // range check cmd's index
-    if (index >= num_commands_max()) {
+    if (index >= num_commands_max()) { //检查航点号是否超过存储器可接收的最大值
         return false;
     }
 
     // calculate where in storage the command should be placed
-    uint16_t pos_in_storage = 4 + (index * AP_MISSION_EEPROM_COMMAND_SIZE);
+    uint16_t pos_in_storage = 4 + (index * AP_MISSION_EEPROM_COMMAND_SIZE); //航点在存储器中的位置
 
     if (cmd.id < 256) {
         _storage.write_byte(pos_in_storage, cmd.id);
@@ -1445,6 +1481,12 @@ bool AP_Mission::advance_current_nav_cmd()
         if(isIndexDown){ //将航点号减一，重复执行上次的航点，因为上次执行的是原地爬升航点
         	isIndexDown = 0;
         	cmd_index--;
+        	if(_break_index == _nav_cmd.index && breakState == 2){ //如果当前航点号等于中断点航点号且中断状态为飞向中断点，则标记状态为已到达中断点
+        		breakState = 3;
+        	}
+        }
+        if(cmd_index == (_cmd_total-1)){ //如果执行到了最后一个航点（返航点）则取消中断点
+        	_break_index.set_and_save(0);
         }
     }
 
@@ -1469,10 +1511,26 @@ bool AP_Mission::advance_current_nav_cmd()
             }
             // set current navigation command and start it
             _nav_cmd = cmd;
+            if(_break_index != 0 && _break_index == _nav_cmd.index && (breakState == 1)){ //自动爬升高度后第二次执行中断点
+            	isIndexDown = 1; //到达中断点后执行后面的航点
+            	breakState = 2;
+            	_nav_cmd.id = MAV_CMD_NAV_WAYPOINT;
+				_nav_cmd.content.location.lat = _break_lat;
+				_nav_cmd.content.location.lng = _break_lng;
+				_nav_cmd.content.location.alt = _break_alt;
+            }
             _flags.nav_cmd_loaded = true;
             if(isFirstClimb){ //检测是否为起飞后第一次爬升
             	isFirstClimb = 0;
             	isIndexDown = 1;
+            	if(_break_index != 0){ //如果有中断点则第一次执行中断点
+            		breakState = 1;
+            		_nav_cmd.index = _break_index;
+            		_nav_cmd.id = MAV_CMD_NAV_WAYPOINT;
+            		_nav_cmd.content.location.lat = _break_lat;
+            		_nav_cmd.content.location.lng = _break_lng;
+            		_nav_cmd.content.location.alt = _break_alt;
+            	}
             	struct Location loc;
 				_ahrs.get_position(loc); //获取当前位置
 				float relativeAlt;
