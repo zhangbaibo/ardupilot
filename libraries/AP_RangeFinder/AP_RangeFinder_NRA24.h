@@ -32,4 +32,7 @@ private:
     uint32_t last_reading_ms;
     uint8_t linebuf[15];
     uint8_t linebuf_len;
+
+    // uint8_t readCount = 0;
+    // uint8_t mean5hz[5];
 };

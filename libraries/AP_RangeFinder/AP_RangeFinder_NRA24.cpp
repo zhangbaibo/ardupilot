@@ -91,7 +91,7 @@ bool AP_RangeFinder_NRA24::get_reading(uint16_t &reading_cm) {
 		} else {
 			linebuf[linebuf_len++] = c;
 			if (linebuf_len == NRA24_FRAME_LENGTH) {
-				// Ð£ÑéºÍ
+				// æ ¡éªŒå’Œ
 				uint8_t checksum = 0;
 				for (uint8_t i = 4; i <= 10; i++) {
 					checksum += linebuf[i];
@@ -110,13 +110,102 @@ bool AP_RangeFinder_NRA24::get_reading(uint16_t &reading_cm) {
 	}
 
 	if (count > 0) {
-		// return average distance of readings Çó¾ùÖµ
+		// return average distance of readings æ±‚å‡å€¼
 		reading_cm = sum_cm / count;
 		return true;
 	}
 	// no readings so return false
 	return false;
 }
+
+/*bool AP_RangeFinder_NRA24::get_reading(uint16_t &reading_cm) {
+	if (uart == nullptr) {
+		return false;
+	}
+
+	float sum_cm = 0;
+	uint16_t count = 0;
+
+	// read any available lines from the lidar
+	int16_t nbytes = uart->available();
+	while (nbytes-- > 0) {
+		int16_t r = uart->read();
+		if (r < 0) {
+			continue;
+		}
+		uint8_t c = (uint8_t) r;
+		// if buffer is empty and this byte is 0x59, add to buffer
+		if (linebuf_len == 0) {
+			if (c == NRA24_FRAME_HEADER) {
+				linebuf[linebuf_len++] = c;
+			}
+		} else if (linebuf_len == 1) {
+			if (c == NRA24_FRAME_HEADER) {
+				linebuf[linebuf_len++] = c;
+			} else {
+				linebuf_len = 0;
+			}
+		} else if (linebuf_len == 2) {
+			if (c == NRA24_FRAME_IDL) {
+				linebuf[linebuf_len++] = c;
+			} else {
+				linebuf_len = 0;
+			}
+		} else if (linebuf_len == 3) {
+			if (c == NRA24_FRAME_IDH) {
+				linebuf[linebuf_len++] = c;
+			} else {
+				linebuf_len = 0;
+			}
+		} else {
+			linebuf[linebuf_len++] = c;
+			if (linebuf_len == NRA24_FRAME_LENGTH) {
+				// Ð£ï¿½ï¿½ï¿½
+				uint8_t checksum = 0;
+				for (uint8_t i = 4; i <= 10; i++) {
+					checksum += linebuf[i];
+				}
+				// if checksum matches extract contents
+				if (checksum == (linebuf[11] & 0xFF)) {
+					// calculate distance
+					uint16_t dist = ((uint16_t) linebuf[6] << 8) | linebuf[7];
+					sum_cm += dist;
+					count++;
+				}
+				// clear buffer
+				linebuf_len = 0;
+			}
+		}
+	}
+
+	if (count > 0) {
+		// return average distance of readings ï¿½ï¿½ï¿½Öµ
+		mean5hz[readCount] = sum_cm / count;
+
+		if(++readCount == 5){ //1Sï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+			readCount = 0;
+			uint8_t i,j,t;
+			for(i=0;i<4;i++) //Ã°ï¿½Ý·ï¿½ï¿½ï¿½ï¿½ï¿½
+			{
+				for(j=0;j<5-i;j++)
+				{
+					if(mean5hz[j]>mean5hz[j+1])
+					{
+						t=mean5hz[j];
+						mean5hz[j]=mean5hz[j+1];
+						mean5hz[j+1]=t;
+					}
+				}
+			}
+			//È¥ï¿½ï¿½ï¿½×´ï¿½Éµã¡¢ï¿½ï¿½Ä¾ï¿½ï¿½ï¿½ï¿½ï¿½ß²ï¿½
+			reading_cm = (mean5hz[1] + mean5hz[2] + mean5hz[3])/3; //È¥ï¿½ï¿½Ò»ï¿½ï¿½ï¿½ï¿½ï¿½ÖµÒ»ï¿½ï¿½ï¿½ï¿½ï¿½Öµï¿½ï¿½Ê£ï¿½Âµï¿½ï¿½ï¿½Æ½ï¿½ï¿½
+			//gcs().send_text(MAV_SEVERITY_ALERT, "YDHY:%d,%d,%d,%d,%d,%d",mean5hz[0],mean5hz[1],mean5hz[2],mean5hz[3],mean5hz[4],reading_cm);
+		}
+		return true;
+	}
+	// no readings so return false
+	return false;
+}*/
 
 /* 
  update the state of the sensor
@@ -132,12 +221,12 @@ void AP_RangeFinder_NRA24::update(void) {
 }
 /*
 	//--------------------------------------------------------------------------------------------------------------------------------------------------
-	//¸Ä±äº½ÏßËÙ¶È
+	//æ”¹å˜èˆªçº¿é€Ÿåº¦
 	if ((AP_HAL::millis() - time_offset) > 10000) {
 		if (is_change) {
-		//	wp_nav->set_speed_xy(100.0f);    //²âÊÔ¿ØÖÆº½ÏßËÙ¶È
+		//	wp_nav->set_speed_xy(100.0f);    //æµ‹è¯•æŽ§åˆ¶èˆªçº¿é€Ÿåº¦
 		} else {
-		//	wp_nav->set_speed_xy(800.0f);    //²âÊÔ¿ØÖÆº½ÏßËÙ¶È
+		//	wp_nav->set_speed_xy(800.0f);    //æµ‹è¯•æŽ§åˆ¶èˆªçº¿é€Ÿåº¦
 		}
 		is_change = !is_change;
 		time_offset = AP_HAL::millis();
