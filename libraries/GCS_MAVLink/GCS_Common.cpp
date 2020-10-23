@@ -732,7 +732,7 @@ bool GCS_MAVLINK::handle_mission_item(mavlink_message_t *msg, AP_Mission &missio
         }
     }
     
-    // if command index is within the existing list, replace the command
+    // if command index is within the existing list, replace the command 如果命令索引在现有列表中，则替换该命令
     if (seq < mission.num_commands()) {
         if (mission.replace_cmd(seq,cmd)) {
             result = MAV_MISSION_ACCEPTED;
@@ -740,7 +740,7 @@ bool GCS_MAVLINK::handle_mission_item(mavlink_message_t *msg, AP_Mission &missio
             result = MAV_MISSION_ERROR;
             goto mission_ack;
         }
-        // if command is at the end of command list, add the command
+        // if command is at the end of command list, add the command 如果命令位于命令列表的末尾，则添加该命令
     } else if (seq == mission.num_commands()) {
         if (mission.add_cmd(cmd)) {
             result = MAV_MISSION_ACCEPTED;
@@ -748,7 +748,7 @@ bool GCS_MAVLINK::handle_mission_item(mavlink_message_t *msg, AP_Mission &missio
             result = MAV_MISSION_ERROR;
             goto mission_ack;
         }
-        // if beyond the end of the command list, return an error
+        // if beyond the end of the command list, return an error 如果超出命令列表的末尾，则返回一个错误
     } else {
         result = MAV_MISSION_ERROR;
         goto mission_ack;
@@ -2421,7 +2421,7 @@ void GCS_MAVLINK::handle_common_mission_message(mavlink_message_t *msg)
 
     // GCS provides the full number of commands it wishes to upload
     //  individual commands will then be sent from the GCS using the MAVLINK_MSG_ID_MISSION_ITEM message
-    case MAVLINK_MSG_ID_MISSION_COUNT:          // MAV ID: 44
+    case MAVLINK_MSG_ID_MISSION_COUNT:          // MAV ID: 44 地面站发送航点之前先发送航点总数，再通过MAVLINK_MSG_ID_MISSION_ITEM发送单个航点命令
     {
         handle_mission_count(*_mission, msg);
         break;

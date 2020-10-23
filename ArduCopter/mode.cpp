@@ -167,7 +167,7 @@ Copter::Mode *Copter::mode_from_mode_num(const uint8_t mode)
 // optional force parameter used to force the flight mode change (used only first time mode is set)
 // returns true if mode was successfully set
 // ACRO, STABILIZE, ALTHOLD, LAND, DRIFT and SPORT can always be set successfully but the return state of other flight modes should be checked and the caller should deal with failures appropriately
-bool Copter::set_mode(control_mode_t mode, mode_reason_t reason)
+bool Copter::set_mode(control_mode_t mode, mode_reason_t reason) //ÇÐ»»Ä£Ê½
 {
 
     // return immediately if we are already in the desired mode
