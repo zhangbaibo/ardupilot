@@ -127,7 +127,7 @@ RC_Channels::RC_Channels(void)
     }
 }
 
-uint16_t RC_Channels::get_radio_in(const uint8_t chan)
+uint16_t RC_Channels::get_radio_in(const uint8_t chan) //获取接收机的通道输入
 {
     if (chan >= NUM_RC_CHANNELS) {
         return 0;

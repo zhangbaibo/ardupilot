@@ -91,13 +91,16 @@ void AP_Mission::stop()
 		_ahrs.get_position(loc); //获取当前位置
 		float relativeAlt;
 		_ahrs.get_hagl(relativeAlt); //获取相对高度
-    	if(_nav_cmd.content.location.flags.relative_alt){ //如果航线是相对高度
+    	if(_nav_cmd.content.location.flags.relative_alt && (!_nav_cmd.content.location.flags.terrain_alt)){ //如果航线是相对高度
         	_break_index.set_and_save(_nav_cmd.index);
         	_break_lat.set_and_save(loc.lat);
         	_break_lng.set_and_save(loc.lng);
     		_break_alt.set_and_save((int32_t)(relativeAlt*100));
-    	}else if(_nav_cmd.content.location.flags.terrain_alt){
-
+    	}else if(_nav_cmd.content.location.flags.relative_alt &&_nav_cmd.content.location.flags.terrain_alt){
+    		_break_index.set_and_save(_nav_cmd.index);
+			_break_lat.set_and_save(loc.lat);
+			_break_lng.set_and_save(loc.lng);
+			_break_alt.set_and_save((int32_t)(relativeAlt*100));
 		}else{
 			_break_index.set_and_save(_nav_cmd.index);
 			_break_lat.set_and_save(loc.lat);
@@ -159,15 +162,20 @@ void AP_Mission::resume()
 		_ahrs.get_position(loc); //获取当前位置
 		float relativeAlt;
 		_ahrs.get_hagl(relativeAlt); //获取相对高度
-		if(_nav_cmd.content.location.flags.relative_alt){ //如果航线是相对高度
+		if(_nav_cmd.content.location.flags.relative_alt && (!_nav_cmd.content.location.flags.terrain_alt)){ //如果航线是相对高度
 			if((relativeAlt*100)<=_nav_cmd.content.location.alt){ //如果当前高度小于目标航点高度则垂直爬升至目标高度，否则保持目前高度飞行至目标航点
 				_nav_cmd.content.location.lat = loc.lat;
 				_nav_cmd.content.location.lng = loc.lng;
 			}else{
 				_nav_cmd.content.location.alt = (int32_t)(relativeAlt*100);
 			}
-		}else if(_nav_cmd.content.location.flags.terrain_alt){
-
+		}else if(_nav_cmd.content.location.flags.relative_alt && _nav_cmd.content.location.flags.terrain_alt){
+			if((relativeAlt*100)<=_nav_cmd.content.location.alt){ //如果当前高度小于目标航点高度则垂直爬升至目标高度，否则保持目前高度飞行至目标航点
+				_nav_cmd.content.location.lat = loc.lat;
+				_nav_cmd.content.location.lng = loc.lng;
+			}else{
+				_nav_cmd.content.location.alt = (int32_t)(relativeAlt*100);
+			}
 		}else{
 			if(loc.alt<=_nav_cmd.content.location.alt){ //如果当前高度小于目标航点高度则垂直爬升至目标高度，否则保持目前高度飞行至目标航点
 				_nav_cmd.content.location.lat = loc.lat;
@@ -239,6 +247,7 @@ void AP_Mission::reset()
     _prev_nav_cmd_wp_index = AP_MISSION_CMD_INDEX_NONE;
     _prev_nav_cmd_id       = AP_MISSION_CMD_ID_NONE;
     init_jump_tracking();
+    isFirstClimb = 1; //每次重新开始执行航线都将isFirstClimb复位
 }
 
 /// clear - clears out mission
@@ -1441,7 +1450,6 @@ void AP_Mission::complete()
     _flags.state = MISSION_COMPLETE;
 
     //gcs().send_text(MAV_SEVERITY_ALERT, "MISSION_COMPLETE");
-    isFirstClimb = 1; //完成航线后为下一次起飞做准备
     // callback to main program's mission complete function
     _mission_complete_fn();
 }
@@ -1478,15 +1486,12 @@ bool AP_Mission::advance_current_nav_cmd()
     }else{
         // start from one position past the current nav command
         cmd_index++;
-        if(isIndexDown){ //将航点号减一，重复执行上次的航点，因为上次执行的是原地爬升航点
+        if(isIndexDown){ //将航点号减一，重复执行上次的航点，因为上次执行的是原地爬升航点或者是中断点
         	isIndexDown = 0;
         	cmd_index--;
         	if(_break_index == _nav_cmd.index && breakState == 2){ //如果当前航点号等于中断点航点号且中断状态为飞向中断点，则标记状态为已到达中断点
         		breakState = 3;
         	}
-        }
-        if(cmd_index == (_cmd_total-1)){ //如果执行到了最后一个航点（返航点）则取消中断点
-        	_break_index.set_and_save(0);
         }
     }
 
@@ -1511,6 +1516,9 @@ bool AP_Mission::advance_current_nav_cmd()
             }
             // set current navigation command and start it
             _nav_cmd = cmd;
+            if(_nav_cmd.index == (unsigned)(_cmd_total-1)){ //如果执行到了最后一个航点（返航点）则取消中断点
+				_break_index.set_and_save(0);
+			}
             if(_break_index != 0 && _break_index == _nav_cmd.index && (breakState == 1)){ //自动爬升高度后第二次执行中断点
             	isIndexDown = 1; //到达中断点后执行后面的航点
             	breakState = 2;
@@ -1535,15 +1543,20 @@ bool AP_Mission::advance_current_nav_cmd()
 				_ahrs.get_position(loc); //获取当前位置
 				float relativeAlt;
 				_ahrs.get_hagl(relativeAlt); //获取相对高度
-				if(_nav_cmd.content.location.flags.relative_alt){ //如果航线是相对高度
+				if(_nav_cmd.content.location.flags.relative_alt && (!_nav_cmd.content.location.flags.terrain_alt)){ //如果航线是相对高度
 					if((relativeAlt*100)<=_nav_cmd.content.location.alt){ //如果当前高度小于目标航点高度则垂直爬升至目标高度，否则保持目前高度飞行至目标航点
 						_nav_cmd.content.location.lat = loc.lat;
 						_nav_cmd.content.location.lng = loc.lng;
 					}else{
 						_nav_cmd.content.location.alt = (int32_t)(relativeAlt*100);
 					}
-				}else if(_nav_cmd.content.location.flags.terrain_alt){
-
+				}else if(_nav_cmd.content.location.flags.relative_alt && _nav_cmd.content.location.flags.terrain_alt){
+					if((relativeAlt*100)<=_nav_cmd.content.location.alt){ //如果当前高度小于目标航点高度则垂直爬升至目标高度，否则保持目前高度飞行至目标航点
+						_nav_cmd.content.location.lat = loc.lat;
+						_nav_cmd.content.location.lng = loc.lng;
+					}else{
+						_nav_cmd.content.location.alt = (int32_t)(relativeAlt*100);
+					}
 				}else{
 					if(loc.alt<=_nav_cmd.content.location.alt){ //如果当前高度小于目标航点高度则垂直爬升至目标高度，否则保持目前高度飞行至目标航点
 						_nav_cmd.content.location.lat = loc.lat;
