@@ -18,6 +18,7 @@
 #include <AP_SerialManager/AP_SerialManager.h>
 #include <ctype.h>
 #include <AP_HAL/utility/sparse-endian.h>
+//#include <RC_Channel/RC_Channel.h>
 
 extern const AP_HAL::HAL &hal;
 
@@ -91,7 +92,7 @@ bool AP_RangeFinder_NRA24::get_reading(uint16_t &reading_cm) {
 		} else {
 			linebuf[linebuf_len++] = c;
 			if (linebuf_len == NRA24_FRAME_LENGTH) {
-				// У���
+				// У���
 				uint8_t checksum = 0;
 				for (uint8_t i = 4; i <= 10; i++) {
 					checksum += linebuf[i];
@@ -122,6 +123,10 @@ bool AP_RangeFinder_NRA24::get_reading(uint16_t &reading_cm) {
  update the state of the sensor
  */
 void AP_RangeFinder_NRA24::update(void) {
+
+	//state.distance_cm = RC_Channels::get_radio_in(2);  //使用遥控器输入作为雷达数据源
+	//last_reading_ms = AP_HAL::millis();
+	//update_status();
 	if (get_reading(state.distance_cm)) {
 		// update range_valid state based on distance measured
 		last_reading_ms = AP_HAL::millis();
