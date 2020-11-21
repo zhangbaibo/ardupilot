@@ -100,7 +100,7 @@ void AP_Mission::stop()
     		_break_index.set_and_save(_nav_cmd.index);
 			_break_lat.set_and_save(loc.lat);
 			_break_lng.set_and_save(loc.lng);
-			_break_alt.set_and_save((int32_t)(relativeAlt*100));
+			_break_alt.set_and_save(_nav_cmd.content.location.alt);
 		}else{
 			_break_index.set_and_save(_nav_cmd.index);
 			_break_lat.set_and_save(loc.lat);
@@ -170,12 +170,12 @@ void AP_Mission::resume()
 				_nav_cmd.content.location.alt = (int32_t)(relativeAlt*100);
 			}
 		}else if(_nav_cmd.content.location.flags.relative_alt && _nav_cmd.content.location.flags.terrain_alt){
-			if((relativeAlt*100)<=_nav_cmd.content.location.alt){ //如果当前高度小于目标航点高度则垂直爬升至目标高度，否则保持目前高度飞行至目标航点
+			/*if((relativeAlt*100)<=_nav_cmd.content.location.alt){ //如果当前高度小于目标航点高度则垂直爬升至目标高度，否则保持目前高度飞行至目标航点
 				_nav_cmd.content.location.lat = loc.lat;
 				_nav_cmd.content.location.lng = loc.lng;
 			}else{
 				_nav_cmd.content.location.alt = (int32_t)(relativeAlt*100);
-			}
+			}*/
 		}else{
 			if(loc.alt<=_nav_cmd.content.location.alt){ //如果当前高度小于目标航点高度则垂直爬升至目标高度，否则保持目前高度飞行至目标航点
 				_nav_cmd.content.location.lat = loc.lat;
@@ -1551,12 +1551,12 @@ bool AP_Mission::advance_current_nav_cmd()
 						_nav_cmd.content.location.alt = (int32_t)(relativeAlt*100);
 					}
 				}else if(_nav_cmd.content.location.flags.relative_alt && _nav_cmd.content.location.flags.terrain_alt){
-					if((relativeAlt*100)<=_nav_cmd.content.location.alt){ //如果当前高度小于目标航点高度则垂直爬升至目标高度，否则保持目前高度飞行至目标航点
+					/*if((relativeAlt*100)<=_nav_cmd.content.location.alt){ //如果当前高度小于目标航点高度则垂直爬升至目标高度，否则保持目前高度飞行至目标航点
 						_nav_cmd.content.location.lat = loc.lat;
 						_nav_cmd.content.location.lng = loc.lng;
 					}else{
 						_nav_cmd.content.location.alt = (int32_t)(relativeAlt*100);
-					}
+					}*/
 				}else{
 					if(loc.alt<=_nav_cmd.content.location.alt){ //如果当前高度小于目标航点高度则垂直爬升至目标高度，否则保持目前高度飞行至目标航点
 						_nav_cmd.content.location.lat = loc.lat;

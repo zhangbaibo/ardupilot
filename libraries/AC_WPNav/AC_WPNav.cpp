@@ -221,7 +221,8 @@ bool AC_WPNav::set_wp_destination(const Vector3f& destination, bool terrain_alt)
         if (!get_terrain_offset(origin_terr_offset)) {
             return false;
         }
-        origin.z -= origin_terr_offset;//起点需要减去山高，在advance_wp_target_along_track中会加上山高
+        //origin.z -= origin_terr_offset;//起点需要减去山高，在advance_wp_target_along_track中会加上山高
+        origin.z = destination.z; //当为仿地模式时，起点的高度与终点高度相同，这样计算距离向量时不会计算高度向量。
     }
 
     // set origin and destination
@@ -375,7 +376,13 @@ bool AC_WPNav::advance_wp_target_along_track(float dt)
     //   track_error is the line from the vehicle to the closest point on the track.  It is the "opposite" side
     //   track_leash_slack is the line from the closest point on the track to the target point.  It is the "adjacent" side.  We adjust this so the track_desired_max is no longer than the leash
     float track_leash_length_abs = fabsf(_track_leash_length);
-    float track_error_max_abs = MAX(_track_leash_length*track_error_z/leash_z, _track_leash_length*_track_error_xy/_pos_control.get_leash_xy());//_pos_control.get_leash_xy()为dt时间内允许移动的最大水平距离
+    float track_error_max_abs;
+
+    if(_terrain_alt){//如果为仿地模式，则计算位置误差时去掉垂直误差
+    	track_error_max_abs = _track_leash_length*_track_error_xy/_pos_control.get_leash_xy();
+    }else{
+        track_error_max_abs = MAX(_track_leash_length*track_error_z/leash_z, _track_leash_length*_track_error_xy/_pos_control.get_leash_xy());//_pos_control.get_leash_xy()为dt时间内允许移动的最大水平距离
+    }
     track_leash_slack = (track_leash_length_abs > track_error_max_abs) ? safe_sqrt(sq(_track_leash_length) - sq(track_error_max_abs)) : 0; //偏差比最大限制距离还大，即飞机离航迹很远，这时飞机停止前进
     track_desired_max = track_covered + track_leash_slack;
 
