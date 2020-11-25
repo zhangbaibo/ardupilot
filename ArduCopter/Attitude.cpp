@@ -233,12 +233,18 @@ float Copter::get_surface_tracking_climb_rate(int16_t target_rate, float current
         return target_rate;
     }
 
+    static uint32_t last_call_ms = 0;
     float distance_error;
     float velocity_correction;
     float current_alt = inertial_nav.get_altitude();
 
+    uint32_t now = millis();
     target_rangefinder_alt_used = true;
 
+    if (now - last_call_ms > RANGEFINDER_TIMEOUT_MS) { //测距仪超时没有更新，则重置测距仪目标高度(如果从自动模式切入到悬停则设置当前高度为目标高度)
+		target_rangefinder_alt = rangefinder_state.alt_cm;
+	}
+	last_call_ms = now;
     // adjust rangefinder target alt if motors have not hit their limits
     if ((target_rate<0 && !motors->limit.throttle_lower) || (target_rate>0 && !motors->limit.throttle_upper)) {
         target_rangefinder_alt += target_rate * dt;

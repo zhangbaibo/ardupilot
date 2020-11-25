@@ -70,8 +70,8 @@ void Copter::update_land_detector()
         bool descent_rate_low = fabsf(inertial_nav.get_velocity_z()) < 100;
 
         // if we have a healthy rangefinder only allow landing detection below 2 meters
-        bool rangefinder_check = (!rangefinder_alt_ok() || rangefinder_state.alt_cm_filt.get() < LAND_RANGEFINDER_MIN_ALT_CM);
-
+        //bool rangefinder_check = (!rangefinder_alt_ok() || rangefinder_state.alt_cm_filt.get() < LAND_RANGEFINDER_MIN_ALT_CM);
+        bool rangefinder_check = (!rangefinder_alt_ok() || rangefinder_state.alt_cm < LAND_RANGEFINDER_MIN_ALT_CM);//由于其数据延迟太大，所以去掉测距仪高度过滤器。
         if (motor_at_lower_limit && accel_stationary && descent_rate_low && rangefinder_check) {
             // landed criteria met - increment the counter and check if we've triggered
             if( land_detector_count < ((float)LAND_DETECTOR_TRIGGER_SEC)*scheduler.get_loop_rate_hz()) {

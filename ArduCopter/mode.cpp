@@ -391,7 +391,8 @@ int32_t Copter::Mode::get_alt_above_ground(void)
 {
     int32_t alt_above_ground;
     if (copter.rangefinder_alt_ok()) {
-        alt_above_ground = copter.rangefinder_state.alt_cm_filt.get();
+        //alt_above_ground = copter.rangefinder_state.alt_cm_filt.get();
+    	alt_above_ground = copter.rangefinder_state.alt_cm; //由于其数据延迟太大，所以去掉测距仪高度过滤器。
     } else {
         bool navigating = pos_control->is_active_xy();
         if (!navigating || !copter.current_loc.get_alt_cm(Location_Class::ALT_FRAME_ABOVE_TERRAIN, alt_above_ground)) {

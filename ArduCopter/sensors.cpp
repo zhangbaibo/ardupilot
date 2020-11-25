@@ -56,7 +56,8 @@ void Copter::read_rangefinder(void)
     }
 
     // send rangefinder altitude and health to waypoint navigation library
-    wp_nav->set_rangefinder_alt(rangefinder_state.enabled, rangefinder_state.alt_healthy, rangefinder_state.alt_cm_filt.get());
+    //wp_nav->set_rangefinder_alt(rangefinder_state.enabled, rangefinder_state.alt_healthy, rangefinder_state.alt_cm_filt.get());
+    wp_nav->set_rangefinder_alt(rangefinder_state.enabled, rangefinder_state.alt_healthy, (float)(rangefinder_state.alt_cm)); //由于其数据延迟太大，所以去掉测距仪高度过滤器。
 
 #else
     rangefinder_state.enabled = false;
