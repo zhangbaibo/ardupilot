@@ -191,37 +191,37 @@ void AP_Proximity_Backend::update_boundary_for_sector(uint8_t sector)
     }
 
     // boundary point lies on the line between the two sectors at the shorter distance found in the two sectors
-    float shortest_distance = PROXIMITY_BOUNDARY_DIST_DEFAULT;
-    if (_distance_valid[sector] && _distance_valid[next_sector]) {
+    float shortest_distance = PROXIMITY_BOUNDARY_DIST_DEFAULT; //最短距离默认为1米
+    if (_distance_valid[sector] && _distance_valid[next_sector]) { //如果本扇区与下一扇区都有值，则取最小值
         shortest_distance = MIN(_distance[sector], _distance[next_sector]);
     } else if (_distance_valid[sector]) {
         shortest_distance = _distance[sector];
     } else if (_distance_valid[next_sector]) {
         shortest_distance = _distance[next_sector];
     }
-    if (shortest_distance < PROXIMITY_BOUNDARY_DIST_MIN) {
+    if (shortest_distance < PROXIMITY_BOUNDARY_DIST_MIN) { //限制最小距离为1米
         shortest_distance = PROXIMITY_BOUNDARY_DIST_MIN;
     }
-    _boundary_point[sector] = _sector_edge_vector[sector] * shortest_distance;
+    _boundary_point[sector] = _sector_edge_vector[sector] * shortest_distance; //本扇区的右边缘矢量
 
     // if the next sector (clockwise) has an invalid distance, set boundary to create a cup like boundary
     if (!_distance_valid[next_sector]) {
-        _boundary_point[next_sector] = _sector_edge_vector[next_sector] * shortest_distance;
+        _boundary_point[next_sector] = _sector_edge_vector[next_sector] * shortest_distance; //如果下一扇区的距离无效，则下一扇区距离等于该扇区距离
     }
 
     // repeat for edge between sector and previous sector
-    uint8_t prev_sector = (sector == 0) ? _num_sectors-1 : sector-1;
+    uint8_t prev_sector = (sector == 0) ? _num_sectors-1 : sector-1; //获取上一个扇区
     shortest_distance = PROXIMITY_BOUNDARY_DIST_DEFAULT;
-    if (_distance_valid[prev_sector] && _distance_valid[sector]) {
+    if (_distance_valid[prev_sector] && _distance_valid[sector]) { //如果本扇区与上一扇区都有值，则取最小值
         shortest_distance = MIN(_distance[prev_sector], _distance[sector]);
     } else if (_distance_valid[prev_sector]) {
         shortest_distance = _distance[prev_sector];
     } else if (_distance_valid[sector]) {
         shortest_distance = _distance[sector];
     }
-    _boundary_point[prev_sector] = _sector_edge_vector[prev_sector] * shortest_distance;
+    _boundary_point[prev_sector] = _sector_edge_vector[prev_sector] * shortest_distance;  //上一扇区的右边缘矢量
 
-    // if the sector counter-clockwise from the previous sector has an invalid distance, set boundary to create a cup like boundary
+    // if the sector counter-clockwise from the previous sector has an invalid distance, set boundary to create a cup like boundary 如果从上一个扇区逆时针方向移动的扇区距离无效，则设置边界以创建一个类似杯子的边界
     uint8_t prev_sector_ccw = (prev_sector == 0) ? _num_sectors-1 : prev_sector-1;
     if (!_distance_valid[prev_sector_ccw]) {
         _boundary_point[prev_sector_ccw] = _sector_edge_vector[prev_sector_ccw] * shortest_distance;

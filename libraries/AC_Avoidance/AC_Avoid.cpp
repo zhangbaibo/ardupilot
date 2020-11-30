@@ -80,7 +80,7 @@ void AC_Avoid::adjust_velocity(float kP, float accel_cmss, Vector2f &desired_vel
     }
 
     if ((_enabled & AC_AVOID_USE_PROXIMITY_SENSOR) > 0 && _proximity_enabled) {
-        adjust_velocity_proximity(kP, accel_cmss_limited, desired_vel_cms, dt);
+        adjust_velocity_proximity(kP, accel_cmss_limited, desired_vel_cms, dt); //通过避障传感器进行调整速度
     }
 }
 
@@ -390,7 +390,7 @@ void AC_Avoid::adjust_velocity_proximity(float kP, float accel_cmss, Vector2f &d
 
     // get boundary from proximity sensor
     uint16_t num_points;
-    const Vector2f *boundary = _proximity.get_boundary_points(num_points);
+    const Vector2f *boundary = _proximity.get_boundary_points(num_points); //获取避障边界
     adjust_velocity_polygon(kP, accel_cmss, desired_vel_cms, boundary, num_points, false, _margin, dt);
 }
 
@@ -405,7 +405,7 @@ void AC_Avoid::adjust_velocity_polygon(float kP, float accel_cmss, Vector2f &des
     }
 
     // do not adjust velocity if vehicle is outside the polygon fence
-    Vector2f position_xy;
+    Vector2f position_xy; //当前坐标
     if (earth_frame) {
         if (!_ahrs.get_relative_position_NE_origin(position_xy)) {
             // boundary is in earth frame but we have no idea
@@ -415,7 +415,7 @@ void AC_Avoid::adjust_velocity_polygon(float kP, float accel_cmss, Vector2f &des
         position_xy = position_xy * 100.0f;  // m to cm
     }
 
-    if (_fence.boundary_breached(position_xy, num_points, boundary)) {
+    if (_fence.boundary_breached(position_xy, num_points, boundary)) { //如果载具超过了围栏则不改变速度
         return;
     }
 
@@ -431,7 +431,7 @@ void AC_Avoid::adjust_velocity_polygon(float kP, float accel_cmss, Vector2f &des
     }
 
     // calc margin in cm
-    const float margin_cm = MAX(margin * 100.0f, 0.0f);
+    const float margin_cm = MAX(margin * 100.0f, 0.0f); //避障距离
 
     // for stopping
     const float speed = safe_vel.length();
@@ -442,7 +442,7 @@ void AC_Avoid::adjust_velocity_polygon(float kP, float accel_cmss, Vector2f &des
         // end points of current edge
         Vector2f start = boundary[j];
         Vector2f end = boundary[i];
-        if ((AC_Avoid::BehaviourType)_behavior.get() == BEHAVIOR_SLIDE) {
+        if ((AC_Avoid::BehaviourType)_behavior.get() == BEHAVIOR_SLIDE) { //如果遇到障碍物的行为是滑动
             // vector from current position to closest point on current edge
             Vector2f limit_direction = Vector2f::closest_point(position_xy, start, end) - position_xy;
             // distance to closest point
@@ -457,20 +457,20 @@ void AC_Avoid::adjust_velocity_polygon(float kP, float accel_cmss, Vector2f &des
                 // i.e. do not adjust velocity.
                 return;
             }
-        } else {
+        } else { //如果遇到障碍物的行为是刹车
             // find intersection with line segment
             Vector2f intersection;
             if (Vector2f::segment_intersection(position_xy, stopping_point_plus_margin, start, end, intersection)) {
-                // vector from current position to point on current edge
+                // vector from current position to point on current edge 从当前位置到当前边缘上点的矢量
                 Vector2f limit_direction = intersection - position_xy;
                 const float limit_distance_cm = limit_direction.length();
                 if (!is_zero(limit_distance_cm)) {
-                    if (limit_distance_cm <= margin_cm) {
+                    if (limit_distance_cm <= margin_cm) { //如果限制距离小于避障距离则刹车
                         // we are within the margin so stop vehicle
                         safe_vel.zero();
                     } else {
                         // vehicle inside the given edge, adjust velocity to not violate this edge
-                        limit_direction /= limit_distance_cm;
+                        limit_direction /= limit_distance_cm; //单位向量
                         limit_velocity(kP, accel_cmss, safe_vel, limit_direction, MAX(limit_distance_cm - margin_cm, 0.0f), dt);
                     }
                 } else {

@@ -49,23 +49,23 @@ void AP_Proximity_RangeFinder::update(void)
         }
         if (sensor->has_data()) {
             // check for horizontal range finders
-            if (sensor->orientation() <= ROTATION_YAW_315) {
+            if (sensor->orientation() <= ROTATION_YAW_315) { //如果传感器的探测方向为水平方向
                 uint8_t sector = (uint8_t)sensor->orientation();
-                _angle[sector] = sector * 45;
-                _distance[sector] = sensor->distance_cm() / 100.0f;
-                _distance_min = sensor->min_distance_cm() / 100.0f;
-                _distance_max = sensor->max_distance_cm() / 100.0f;
-                _distance_valid[sector] = (_distance[sector] >= _distance_min) && (_distance[sector] <= _distance_max);
+                _angle[sector] = sector * 45; //标记测距仪的方向
+                _distance[sector] = sensor->distance_cm() / 100.0f; //测距仪探测的距离
+                _distance_min = sensor->min_distance_cm() / 100.0f; //测距仪的最小距离
+                _distance_max = sensor->max_distance_cm() / 100.0f; //测距仪的最大距离
+                _distance_valid[sector] = (_distance[sector] >= _distance_min) && (_distance[sector] <= _distance_max); //检查数据是否有效
                 _last_update_ms = now;
-                update_boundary_for_sector(sector);
+                update_boundary_for_sector(sector); //更新扇区边界
             }
             // check upward facing range finder
-            if (sensor->orientation() == ROTATION_PITCH_90) {
+            if (sensor->orientation() == ROTATION_PITCH_90) { //如果传感器的探测方向为朝上
                 int16_t distance_upward = sensor->distance_cm();
                 int16_t up_distance_min = sensor->min_distance_cm();
                 int16_t up_distance_max = sensor->max_distance_cm();
                 if ((distance_upward >= up_distance_min) && (distance_upward <= up_distance_max)) {
-                    _distance_upward = distance_upward * 1e2;
+                    _distance_upward = distance_upward * 1e2; //获取测距仪探测的距离
                 } else {
                     _distance_upward = -1.0; // mark an valid reading
                 }

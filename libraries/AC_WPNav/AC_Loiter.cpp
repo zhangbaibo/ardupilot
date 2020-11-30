@@ -234,10 +234,10 @@ void AC_Loiter::calc_desired_velocity(float nav_dt, float ekfGndSpdLimit)
 {
     // calculate a loiter speed limit which is the minimum of the value set by the LOITER_SPEED
     // parameter and the value set by the EKF to observe optical flow limits
-    float gnd_speed_limit_cms = MIN(_speed_cms, ekfGndSpdLimit*100.0f);
+    float gnd_speed_limit_cms = MIN(_speed_cms, ekfGndSpdLimit*100.0f); //使用光流等传感器的限制速度，4m/s
     gnd_speed_limit_cms = MAX(gnd_speed_limit_cms, LOITER_SPEED_MIN);
 
-    float pilot_acceleration_max = GRAVITY_MSS*100.0f * tanf(radians(get_angle_max_cd()*0.01f));
+    float pilot_acceleration_max = GRAVITY_MSS*100.0f * tanf(radians(get_angle_max_cd()*0.01f)); //计算最大加速度
 
     // range check nav_dt
     if (nav_dt < 0) {
@@ -300,7 +300,7 @@ void AC_Loiter::calc_desired_velocity(float nav_dt, float ekfGndSpdLimit)
 
     // Limit the velocity to prevent fence violations
     // TODO: We need to also limit the _desired_accel
-    if (_avoid != nullptr) {
+    if (_avoid != nullptr) { //如果开启了避障，则进行相应速度限制
         _avoid->adjust_velocity(_pos_control.get_pos_xy_p().kP(), _accel_cmss, desired_vel, nav_dt);
     }
 
