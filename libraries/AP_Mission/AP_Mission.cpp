@@ -84,31 +84,8 @@ void AP_Mission::start()
 void AP_Mission::stop()
 {
     _flags.state = MISSION_STOPPED;
-
-    //如果当前航点大于1（排除起飞过程中）且不是返航航点（排除在返航过程中）且上个中断点已完成，则进行记录中断点
-    if(_nav_cmd.index > 1 && _nav_cmd.id != MAV_CMD_NAV_RETURN_TO_LAUNCH && (breakState == 3 || breakState == 0)){
-    	struct Location loc;
-		_ahrs.get_position(loc); //获取当前位置
-		float relativeAlt;
-		_ahrs.get_hagl(relativeAlt); //获取相对高度
-    	if(_nav_cmd.content.location.flags.relative_alt && (!_nav_cmd.content.location.flags.terrain_alt)){ //如果航线是相对高度
-        	_break_index.set_and_save(_nav_cmd.index);
-        	_break_lat.set_and_save(loc.lat);
-        	_break_lng.set_and_save(loc.lng);
-    		_break_alt.set_and_save((int32_t)(relativeAlt*100));
-    	}else if(_nav_cmd.content.location.flags.relative_alt &&_nav_cmd.content.location.flags.terrain_alt){
-    		_break_index.set_and_save(_nav_cmd.index);
-			_break_lat.set_and_save(loc.lat);
-			_break_lng.set_and_save(loc.lng);
-			_break_alt.set_and_save(_nav_cmd.content.location.alt);
-		}else{
-			_break_index.set_and_save(_nav_cmd.index);
-			_break_lat.set_and_save(loc.lat);
-			_break_lng.set_and_save(loc.lng);
-			_break_alt.set_and_save(loc.alt);
-    	}
-    }
-	breakState = 0; //复位中断点状态
+    breakPosition(GET_BREAK_POSITION);
+    autoClimb(RESET_HOLD_INDEX);
 }
 
 /// resume - continues the mission execution from where we last left off
@@ -149,43 +126,9 @@ void AP_Mission::resume()
     // Note: if there is no active command then the mission must have been stopped just after the previous nav command completed
     //      update will take care of finding and starting the nav command
     if (_flags.nav_cmd_loaded) {
-		isIndexDown = 1;
-		if(_break_index != 0){ //如果有中断点则第一次执行中断点
-			breakState = 1;
-			_nav_cmd.index = _break_index;
-			_nav_cmd.id = MAV_CMD_NAV_WAYPOINT;
-			_nav_cmd.content.location.lat = _break_lat;
-			_nav_cmd.content.location.lng = _break_lng;
-			_nav_cmd.content.location.alt = _break_alt;
-		}
-		struct Location loc;
-		_ahrs.get_position(loc); //获取当前位置
-		float relativeAlt;
-		_ahrs.get_hagl(relativeAlt); //获取相对高度
-		if(_nav_cmd.content.location.flags.relative_alt && (!_nav_cmd.content.location.flags.terrain_alt)){ //如果航线是相对高度
-			if((relativeAlt*100)<=_nav_cmd.content.location.alt){ //如果当前高度小于目标航点高度则垂直爬升至目标高度，否则保持目前高度飞行至目标航点
-				_nav_cmd.content.location.lat = loc.lat;
-				_nav_cmd.content.location.lng = loc.lng;
-			}else{
-				_nav_cmd.content.location.alt = (int32_t)(relativeAlt*100);
-			}
-		}else if(_nav_cmd.content.location.flags.relative_alt && _nav_cmd.content.location.flags.terrain_alt){
-			/*if((relativeAlt*100)<=_nav_cmd.content.location.alt){ //如果当前高度小于目标航点高度则垂直爬升至目标高度，否则保持目前高度飞行至目标航点
-				_nav_cmd.content.location.lat = loc.lat;
-				_nav_cmd.content.location.lng = loc.lng;
-			}else{
-				_nav_cmd.content.location.alt = (int32_t)(relativeAlt*100);
-			}*/
-		}else{
-			if(loc.alt<=_nav_cmd.content.location.alt){ //如果当前高度小于目标航点高度则垂直爬升至目标高度，否则保持目前高度飞行至目标航点
-				_nav_cmd.content.location.lat = loc.lat;
-				_nav_cmd.content.location.lng = loc.lng;
-			}else{
-				_nav_cmd.content.location.alt = loc.alt;
-			}
-		}
-		//gcs().send_text(MAV_SEVERITY_ALERT, "3alt:%d,lat:%d,lng:%d",_nav_cmd.content.location.alt,_nav_cmd.content.location.lat,_nav_cmd.content.location.lng);
-        _cmd_start_fn(_nav_cmd);
+    	breakPosition(CHECK_GO_BREAK_RESUME);
+    	autoClimb(GET_CLIMB_POSITION);
+		_cmd_start_fn(_nav_cmd);
     }
 
     // restart active do command
@@ -247,7 +190,7 @@ void AP_Mission::reset()
     _prev_nav_cmd_wp_index = AP_MISSION_CMD_INDEX_NONE;
     _prev_nav_cmd_id       = AP_MISSION_CMD_ID_NONE;
     init_jump_tracking();
-    isFirstClimb = 1; //每次重新开始执行航线都将isFirstClimb复位
+    autoClimb(RESET_VERTICAL_CLIMB);//每次重新开始执行航线都将isVerticalClimb复位
 }
 
 /// clear - clears out mission
@@ -279,7 +222,7 @@ void AP_Mission::truncate(uint16_t index)
     if ((unsigned)_cmd_total > index) {        
         _cmd_total.set_and_save(index);
     }
-    _break_index.set_and_save(0); //新航线上传则取消中断点
+    breakPosition(DELETE_BREAK_POSITION);
 }
 
 /// update - ensures the command queues are loaded with the next command and calls main programs command_init and command_verify functions to progress the mission
@@ -1454,6 +1397,135 @@ void AP_Mission::complete()
     _mission_complete_fn();
 }
 
+//函数中包含了垂直爬升功能的所有程序
+void AP_Mission::autoClimb(autoClimbEvent event,uint16_t *index)
+{
+	struct Location loc;
+	int32_t relativeAlt;
+	switch (event) {
+	case CHECK_NEED_CLIMB:
+		 if(isVerticalClimb){ //检测是否进行垂直爬升，如果需要则进行爬升
+			 isVerticalClimb = 0;
+		 }else{
+			 return;
+		 }
+	case GET_CLIMB_POSITION:
+		isHoldIndex = 1;
+		_ahrs.get_position(loc); //获取当前位置
+		relativeAlt = loc.alt - _ahrs.get_home().alt; //获取相对高度
+		if(_nav_cmd.content.location.flags.relative_alt && (!_nav_cmd.content.location.flags.terrain_alt)){ //如果航线是相对高度
+			if(relativeAlt <= _nav_cmd.content.location.alt){ //如果当前高度小于目标航点高度则垂直爬升至目标高度，否则保持目前高度飞行至目标航点
+				_nav_cmd.content.location.lat = loc.lat;
+				_nav_cmd.content.location.lng = loc.lng;
+			}else{
+				_nav_cmd.content.location.alt = relativeAlt;
+			}
+		}else if(_nav_cmd.content.location.flags.relative_alt && _nav_cmd.content.location.flags.terrain_alt){
+			/*if(relativeAlt<=_nav_cmd.content.location.alt){ //如果当前高度小于目标航点高度则垂直爬升至目标高度，否则保持目前高度飞行至目标航点
+				_nav_cmd.content.location.lat = loc.lat;
+				_nav_cmd.content.location.lng = loc.lng;
+			}else{
+				_nav_cmd.content.location.alt = relativeAlt;
+			}*/
+		}else{
+			if(loc.alt<=_nav_cmd.content.location.alt){ //如果当前高度小于目标航点高度则垂直爬升至目标高度，否则保持目前高度飞行至目标航点
+				_nav_cmd.content.location.lat = loc.lat;
+				_nav_cmd.content.location.lng = loc.lng;
+			}else{
+				_nav_cmd.content.location.alt = loc.alt;
+			}
+		}
+		return;
+	case GET_WAYPOINT_INDEX:
+		if(isHoldIndex){ //将航点号减一，重复执行上次的航点，因为上次执行的是原地爬升航点或者是中断点
+			isHoldIndex = 0;
+			*index = (*index) - 1;
+		}
+		return;
+	case RESET_VERTICAL_CLIMB:
+		isVerticalClimb = 1; //每次重新开始执行航线都将isVerticalClimb复位
+		return;
+	case RESET_HOLD_INDEX:
+		isHoldIndex = 0; //复位保持航点位
+		return;
+	default:
+		return;
+	}
+}
+//函数中包含了记录中断点功能的所有程序
+void AP_Mission::breakPosition(breakPositionEvent event)
+{
+	struct Location loc;
+	int32_t relativeAlt;
+	switch (event) {
+	case GET_BREAK_POSITION:
+	    //如果当前航点大于1（排除起飞过程中）且不是返航航点（排除在返航过程中）且上个中断点已完成，则进行记录中断点
+		if(_nav_cmd.index > 1 && _nav_cmd.id != MAV_CMD_NAV_RETURN_TO_LAUNCH && (breakState == 3 || breakState == 0)){
+			_ahrs.get_position(loc); //获取当前位置
+			relativeAlt = loc.alt - _ahrs.get_home().alt; //获取相对高度
+			if(_nav_cmd.content.location.flags.relative_alt && (!_nav_cmd.content.location.flags.terrain_alt)){ //如果航线是相对高度
+				_break_index.set_and_save(_nav_cmd.index);
+				_break_lat.set_and_save(loc.lat);
+				_break_lng.set_and_save(loc.lng);
+				_break_alt.set_and_save(relativeAlt);
+			}else if(_nav_cmd.content.location.flags.relative_alt &&_nav_cmd.content.location.flags.terrain_alt){
+				_break_index.set_and_save(_nav_cmd.index);
+				_break_lat.set_and_save(loc.lat);
+				_break_lng.set_and_save(loc.lng);
+				_break_alt.set_and_save(_nav_cmd.content.location.alt);
+			}else{
+				_break_index.set_and_save(_nav_cmd.index);
+				_break_lat.set_and_save(loc.lat);
+				_break_lng.set_and_save(loc.lng);
+				_break_alt.set_and_save(loc.alt);
+			}
+		}
+		breakState = 0; //复位中断点状态
+		return;
+	case CHECK_GO_BREAK:
+		if((_break_index != 0) && (breakState == 0)){ //如果有中断点则第一次执行中断点
+
+		}else if((_break_index != 0) && (_break_index == _nav_cmd.index) && (breakState == 1)){ //自动爬升高度后第二次执行中断点
+			breakState = 2;
+			isHoldIndex = 1; //到达中断点后执行后面的航点
+			_nav_cmd.id = MAV_CMD_NAV_WAYPOINT;
+			_nav_cmd.content.location.lat = _break_lat;
+			_nav_cmd.content.location.lng = _break_lng;
+			_nav_cmd.content.location.alt = _break_alt;
+			return;
+		}else{
+			return;
+		}
+	case CHECK_GO_BREAK_RESUME:
+		if((_break_index != 0) && (breakState !=3)){ //如果有中断点则第一次执行中断点
+			breakState = 1;
+			isHoldIndex = 1;
+			_nav_cmd.index = _break_index;
+			_nav_cmd.id = MAV_CMD_NAV_WAYPOINT;
+			_nav_cmd.content.location.lat = _break_lat;
+			_nav_cmd.content.location.lng = _break_lng;
+			_nav_cmd.content.location.alt = _break_alt;
+		}
+		return;
+	case SET_BREAK_STATE:
+		if(_break_index == _nav_cmd.index && breakState == 2){ //如果当前航点号等于中断点航点号且中断状态为飞向中断点，则标记状态为已到达中断点
+			breakState = 3;
+		}
+		return;
+	case CHECK_DELETE_BREAK:
+		if(_nav_cmd.index == (unsigned)(_cmd_total-1)){ //如果执行到了最后一个航点（返航点）则取消中断点
+
+		}else{
+			return;
+		}
+	case DELETE_BREAK_POSITION:
+	    _break_index.set_and_save(0); //新航线上传则取消中断点
+		return;
+	default:
+		return;
+	}
+}
+
 /// advance_current_nav_cmd - moves current nav command forward
 ///     do command will also be loaded
 ///     accounts for do-jump commands
@@ -1486,15 +1558,10 @@ bool AP_Mission::advance_current_nav_cmd()
     }else{
         // start from one position past the current nav command
         cmd_index++;
-        if(isIndexDown){ //将航点号减一，重复执行上次的航点，因为上次执行的是原地爬升航点或者是中断点
-        	isIndexDown = 0;
-        	cmd_index--;
-        	if(_break_index == _nav_cmd.index && breakState == 2){ //如果当前航点号等于中断点航点号且中断状态为飞向中断点，则标记状态为已到达中断点
-        		breakState = 3;
-        	}
-        }
     }
 
+    autoClimb(GET_WAYPOINT_INDEX,&cmd_index);
+    breakPosition(SET_BREAK_STATE);
     // avoid endless loops
     uint8_t max_loops = 255;
 
@@ -1516,57 +1583,10 @@ bool AP_Mission::advance_current_nav_cmd()
             }
             // set current navigation command and start it
             _nav_cmd = cmd;
-            if(_nav_cmd.index == (unsigned)(_cmd_total-1)){ //如果执行到了最后一个航点（返航点）则取消中断点
-				_break_index.set_and_save(0);
-			}
-            if(_break_index != 0 && _break_index == _nav_cmd.index && (breakState == 1)){ //自动爬升高度后第二次执行中断点
-            	isIndexDown = 1; //到达中断点后执行后面的航点
-            	breakState = 2;
-            	_nav_cmd.id = MAV_CMD_NAV_WAYPOINT;
-				_nav_cmd.content.location.lat = _break_lat;
-				_nav_cmd.content.location.lng = _break_lng;
-				_nav_cmd.content.location.alt = _break_alt;
-            }
             _flags.nav_cmd_loaded = true;
-            if(isFirstClimb){ //检测是否为起飞后第一次爬升
-            	isFirstClimb = 0;
-            	isIndexDown = 1;
-            	if(_break_index != 0){ //如果有中断点则第一次执行中断点
-            		breakState = 1;
-            		_nav_cmd.index = _break_index;
-            		_nav_cmd.id = MAV_CMD_NAV_WAYPOINT;
-            		_nav_cmd.content.location.lat = _break_lat;
-            		_nav_cmd.content.location.lng = _break_lng;
-            		_nav_cmd.content.location.alt = _break_alt;
-            	}
-            	struct Location loc;
-				_ahrs.get_position(loc); //获取当前位置
-				float relativeAlt;
-				_ahrs.get_hagl(relativeAlt); //获取相对高度
-				if(_nav_cmd.content.location.flags.relative_alt && (!_nav_cmd.content.location.flags.terrain_alt)){ //如果航线是相对高度
-					if((relativeAlt*100)<=_nav_cmd.content.location.alt){ //如果当前高度小于目标航点高度则垂直爬升至目标高度，否则保持目前高度飞行至目标航点
-						_nav_cmd.content.location.lat = loc.lat;
-						_nav_cmd.content.location.lng = loc.lng;
-					}else{
-						_nav_cmd.content.location.alt = (int32_t)(relativeAlt*100);
-					}
-				}else if(_nav_cmd.content.location.flags.relative_alt && _nav_cmd.content.location.flags.terrain_alt){
-					/*if((relativeAlt*100)<=_nav_cmd.content.location.alt){ //如果当前高度小于目标航点高度则垂直爬升至目标高度，否则保持目前高度飞行至目标航点
-						_nav_cmd.content.location.lat = loc.lat;
-						_nav_cmd.content.location.lng = loc.lng;
-					}else{
-						_nav_cmd.content.location.alt = (int32_t)(relativeAlt*100);
-					}*/
-				}else{
-					if(loc.alt<=_nav_cmd.content.location.alt){ //如果当前高度小于目标航点高度则垂直爬升至目标高度，否则保持目前高度飞行至目标航点
-						_nav_cmd.content.location.lat = loc.lat;
-						_nav_cmd.content.location.lng = loc.lng;
-					}else{
-						_nav_cmd.content.location.alt = loc.alt;
-					}
-				}
-                //gcs().send_text(MAV_SEVERITY_ALERT, "2alt:%d,lat:%d,lng:%d",_nav_cmd.content.location.alt,_nav_cmd.content.location.lat,_nav_cmd.content.location.lng);
-            }
+            breakPosition(CHECK_DELETE_BREAK);
+			breakPosition(CHECK_GO_BREAK);
+			autoClimb(CHECK_NEED_CLIMB);
             _cmd_start_fn(_nav_cmd);  //启动这个导航命令，直接通过指针调用mode_auto.cpp的函数
         }else{  //do命令
             // set current do command and start it (if not already set)

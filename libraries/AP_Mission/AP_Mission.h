@@ -555,7 +555,28 @@ private:
 
     // last time that mission changed
     uint32_t _last_change_time_ms;
-    bool isFirstClimb = 1;
-    bool isIndexDown = 0;
+
+    enum autoClimbEvent {
+    	CHECK_NEED_CLIMB=0, //检查是否需要进行爬升
+    	GET_CLIMB_POSITION=1, //获取需要爬升的位置
+		GET_WAYPOINT_INDEX=2, //获取下一个航点的航点号
+		RESET_VERTICAL_CLIMB=3, //复位是否垂直爬升的状态位
+		RESET_HOLD_INDEX=4 //复位是否垂直爬升的状态位
+        };
+    enum breakPositionEvent {
+		GET_BREAK_POSITION=0, //获取中断位置
+		CHECK_GO_BREAK=1, //检查是否需要第一次飞行到中断位置
+		CHECK_GO_BREAK_RESUME=2, //检查是否需要第一次飞行到中断位置
+		SET_BREAK_STATE=3,//设置中断状态
+		CHECK_DELETE_BREAK=4, //检查是否需要删除中断位置
+		DELETE_BREAK_POSITION=5 //删除中断位置
+		};
+
+    //切入自动模式后自动垂直爬升功能
+    void autoClimb(autoClimbEvent event,uint16_t *index = 0);
+    void breakPosition(breakPositionEvent event);
+
+    bool isVerticalClimb = 1;
+    bool isHoldIndex = 0;
     uint8_t breakState = 0; //0 默认状态，1 切入高度检查，2 飞向中断点，3 已到达中断点
 };
