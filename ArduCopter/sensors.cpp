@@ -59,6 +59,10 @@ void Copter::read_rangefinder(void)
     //wp_nav->set_rangefinder_alt(rangefinder_state.enabled, rangefinder_state.alt_healthy, rangefinder_state.alt_cm_filt.get());
     wp_nav->set_rangefinder_alt(rangefinder_state.enabled, rangefinder_state.alt_healthy, (float)(rangefinder_state.alt_cm)); //由于其数据延迟太大，所以去掉测距仪高度过滤器。
 
+    FrontRangeFinderState.distanceHealthy = (rangefinder.status_orient(ROTATION_NONE) == RangeFinder::RangeFinder_Good); //判断前避障传感器是否健康
+    FrontRangeFinderState.distanceCM = rangefinder.distance_cm_orient(ROTATION_NONE); //获取前避障距离
+    wp_nav->setFrontRangeFinderDistance(FrontRangeFinderState.distanceHealthy, (float)(FrontRangeFinderState.distanceCM)); //将前避障距离传给自动导航
+
 #else
     rangefinder_state.enabled = false;
     rangefinder_state.alt_healthy = false;
@@ -406,7 +410,8 @@ void Copter::update_sensor_status_flags(void)
 #if RANGEFINDER_ENABLED == ENABLED
     if (rangefinder_state.enabled) {
         control_sensors_enabled |= MAV_SYS_STATUS_SENSOR_LASER_POSITION;
-        if (!rangefinder.has_data_orient(ROTATION_PITCH_270)) {
+       // if (!rangefinder.has_data_orient(ROTATION_PITCH_270)) {
+        if ((!rangefinder.has_data_orient(ROTATION_PITCH_270)) || (!rangefinder.has_data_orient(ROTATION_NONE))) { //添加前视雷达传感器监测
             control_sensors_health &= ~MAV_SYS_STATUS_SENSOR_LASER_POSITION;
         }
     }

@@ -11,6 +11,7 @@
 bool Copter::ModeRTL::init(bool ignore_checks)
 {
     if (copter.position_ok() || ignore_checks) {
+    	wp_nav->initAvoidVar(false); //初始化避障参数
         // initialise waypoint and spline controller
         wp_nav->wp_and_spline_init();
         build_path(!copter.failsafe.terrain);
@@ -47,6 +48,7 @@ void Copter::ModeRTL::run(bool disarm_on_land)
             loiterathome_start();
             break;
         case RTL_LoiterAtHome:
+        	wp_nav->isRTLDescentState = true; //标记返航进入降落阶段
             if (rtl_path.land || copter.failsafe.radio) {
                 land_start();
             }else{
@@ -92,6 +94,7 @@ void Copter::ModeRTL::climb_start()
 {
     _state = RTL_InitialClimb;
     _state_complete = false;
+    wp_nav->isRTLClimbState = true; //标记返航进入爬升阶段
 
     // RTL_SPEED == 0 means use WPNAV_SPEED
     if (g.rtl_speed_cms != 0) {
@@ -109,6 +112,7 @@ void Copter::ModeRTL::climb_start()
 
     // hold current yaw during initial climb
     auto_yaw.set_mode(AUTO_YAW_HOLD);
+    auto_yaw.set_fixed_yaw(((float)get_bearing_cd(copter.current_loc, ahrs.get_home()))/100.0,0,1,0); //立即使机头朝向home点，否则前避障雷达无效，设置航向锁定到home点绝对方向
 }
 
 // rtl_return_start - initialise return to home

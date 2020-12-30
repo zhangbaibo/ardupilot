@@ -248,6 +248,12 @@ private:
         int8_t glitch_count;
     } rangefinder_state = { false, false, 0, 0 };
 
+    struct {
+		bool distanceHealthy:1;
+		int16_t distanceCM;
+		uint32_t lastHealthymMS;
+	} FrontRangeFinderState = { false, 0, 0 };
+
 #if RPM_ENABLED == ENABLED
     AP_RPM rpm_sensor;
 #endif

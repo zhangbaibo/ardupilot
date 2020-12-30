@@ -216,6 +216,23 @@ public:
 
     static const struct AP_Param::GroupInfo var_info[];
 
+    enum AvoidState {  //避障的状态
+		NO_AVOID = 0,  //没有避障
+		AVOID_BRAKE,   //刹车悬停
+		AVOID_CLIMB,   //爬升
+		AVOID_WAIT,	   //悬停等待
+		AVOID_OVER,    //越障
+		AVOID_RTL	   //返航
+	};
+	AvoidState	avoidState = NO_AVOID;					//避障状态
+	bool		isAutoMode = true;						//是否是自动模式 0：返航模式，1：自动模式
+	bool		isRTLClimbState = false;				//返航模式是否处于爬升阶段
+	bool		isRTLDescentState = false;				//返航模式是否处于降落阶段
+    //设置前方测距仪的距离
+    void setFrontRangeFinderDistance(bool healthy, float distanceCM) { frontRangeFinderHealthy = healthy; frontRangeFinderDistanceCM = distanceCM; }
+    //初始化避障参数
+	void initAvoidVar(bool is_auto_mode);
+
 protected:
 
     // segment types, either straight or spine
@@ -312,4 +329,28 @@ protected:
     AP_Int8     _rangefinder_use;
     bool        _rangefinder_healthy = false;
     float       _rangefinder_alt_cm = 0.0f;
+
+    //飞控参数
+    AP_Float 	frontAvoidDistanceCM;				//前避障距离
+    AP_Float 	downAvoidDistanceCM;				//下避障距离
+    AP_Int8		frontAvoidSelect;					//避障策略选择：0悬停等待指令1返航
+    AP_Int8		maxAvoidCount;						//允许航线最大总避障次数
+    AP_Float	avoidClimbAltCM;					//避障后爬升的距离
+    AP_Int8		avoidLoiterSEC;						//避障悬停时间
+    AP_Int8		avoidOverSEC;						//越障时间
+    AP_Int8		maxRTLAvoidCount;					//返航允许的最大避障次数
+
+    bool        frontRangeFinderHealthy = false;
+    float       frontRangeFinderDistanceCM = 0.0f;
+    uint8_t		avoidCount = 0;						//遇到避障的次数
+    uint32_t	avoidStartMS = 0;					//避障开始的时间
+    float		wpAddAlt = 0;						//航线需要增加的高度
+    bool		isTriggerDownAvoid = false;			//是否触发了下避障
+    uint32_t	FAvoidBadStartMS = 0;				//前避障传感器损坏开始的时间
+    uint32_t	DAvoidBadStartMS = 0;				//下避障传感器损坏开始的时间
+
+    //检查避障的水平位置限制
+    void checkAvoidXYPositionLimit();
+    //检查避障的高度爬升限制
+	void checkAvoidZPositionLimit(Vector3f& targetPosition);
 };

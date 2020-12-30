@@ -68,6 +68,23 @@ const AP_Param::GroupInfo AC_WPNav::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("RFND_USE",   10, AC_WPNav, _rangefinder_use, 1),
 
+	//前避障距离
+	AP_GROUPINFO("F_AVO_DIST",   11, AC_WPNav, frontAvoidDistanceCM, 1500.0f),
+	//下避障距离
+	AP_GROUPINFO("D_AVO_DIST",   12, AC_WPNav, downAvoidDistanceCM, 500.0f),
+	//是否直接返航
+	AP_GROUPINFO("AVO_SELECT",   13, AC_WPNav, frontAvoidSelect, 0),
+	//航线最大总避障次数
+	AP_GROUPINFO("AVO_COUNT",   14, AC_WPNav, maxAvoidCount, 2),
+	//避障后爬升的距离
+	AP_GROUPINFO("CLIMB_ALT",   15, AC_WPNav, avoidClimbAltCM, 2000.0f),
+	//避障悬停等待时间
+	AP_GROUPINFO("LOITER_SEC",   16, AC_WPNav, avoidLoiterSEC, 10),
+	//越障时间
+	AP_GROUPINFO("OVER_SEC",   17, AC_WPNav, avoidOverSEC, 15),
+	//返航允许的最大避障次数
+	AP_GROUPINFO("RAVO_COUNT",   18, AC_WPNav, maxRTLAvoidCount, 3),
+
     AP_GROUPEND
 };
 
@@ -207,9 +224,19 @@ bool AC_WPNav::set_wp_destination(const Vector3f& destination, bool terrain_alt)
 	//terrain_alt = true;
 	//--------------------------------------------------------------------------------------------------------------------------------------------------
 	// if waypoint controller is active use the existing position target as the origin
-    if ((AP_HAL::millis() - _wp_last_update) < 1000) {
+    //if ((AP_HAL::millis() - _wp_last_update) < 1000) {
+	if ((AP_HAL::millis() - _wp_last_update) < 50) { //改成50ms，防止有快速切换模式的操作
         origin = _pos_control.get_pos_target();//获取原点
-    } else {
+        if(isAutoMode){
+            origin.z = _destination.z; //为了保证航线向量不变，起点的高度等于上一次终点的高度，防止使用当前避障高度
+        }else{ //返航模式
+        	if(isRTLClimbState){ //如果处于爬升阶段
+        		isRTLClimbState = false;
+        	}else{
+        		origin.z = _destination.z; //为了保证航线向量不变，起点的高度等于上一次终点的高度，防止使用当前避障高度
+        	}
+        }
+    } else { //刚切入自动模式
         // if waypoint controller is not active, set origin to reasonable stopping point (using curr pos and velocity)
         _pos_control.get_stopping_point_xy(origin);
         _pos_control.get_stopping_point_z(origin);
@@ -329,6 +356,127 @@ void AC_WPNav::get_wp_stopping_point(Vector3f& stopping_point) const
     _pos_control.get_stopping_point_z(stopping_point);
 }
 
+//初始化避障参数
+void AC_WPNav::initAvoidVar(bool is_auto_mode)
+{
+	avoidState = NO_AVOID; //避障状态复位
+	avoidCount = 0; //航线遇到的避障次数清零
+	wpAddAlt = 0; //航线需要增加的高度
+	isAutoMode = is_auto_mode; //标记当前飞行模式
+	isRTLClimbState = false;
+	isRTLDescentState = false;
+	isTriggerDownAvoid = false;
+}
+
+//检查避障的水平位置限制
+void AC_WPNav::checkAvoidXYPositionLimit()
+{
+	if(isRTLDescentState){ //如果处于返航模式下的降落阶段
+		wpAddAlt = 0; //恢复航线高度
+		return;
+	}
+	switch (avoidState) {
+	case NO_AVOID:
+		if (_rangefinder_available == true) { //如果开启了下避障设备
+			if (_rangefinder_healthy) { //如果下避障距离可用
+				if(_rangefinder_alt_cm <= downAvoidDistanceCM){ //如果下测距仪距离小于避障距离则产生避障
+					avoidCount++;   //航线遇到的避障次数+1
+					_limited_speed_xy_cms = 0; //刹车悬停
+					avoidState = AVOID_BRAKE;
+					isTriggerDownAvoid = true;
+					return; //如果触发了下避障则不再检测前避障，下避障级别高于前避障
+				}
+			}else{
+				//下测距仪不健康
+			}
+		}
+		if (_avoid->proximity_avoidance_enabled()) { //如果开启了前避障设备
+			if (frontRangeFinderHealthy) { //如果前避障距离可用
+				if(frontRangeFinderDistanceCM <= frontAvoidDistanceCM){ //如果前向测距仪距离小于避障距离则产生避障
+					avoidCount++;   //航线遇到的避障次数+1
+					_limited_speed_xy_cms = 0; //刹车悬停
+					avoidState = AVOID_BRAKE;
+				}
+			}else{
+				//前测距仪不健康
+			}
+		}
+		return;
+	case AVOID_BRAKE:
+		_limited_speed_xy_cms = 0; //刹车悬停
+		return;
+	case AVOID_CLIMB:
+		_limited_speed_xy_cms = 0; //保持水平位置
+		return;
+	case AVOID_WAIT:
+		_limited_speed_xy_cms = 0; //保持位置
+		return;
+	default:
+		return;
+	}
+}
+
+//检查避障的高度爬升限制
+void AC_WPNav::checkAvoidZPositionLimit(Vector3f& targetPosition)
+{
+	if(isRTLDescentState){ //如果处于返航模式下的降落阶段
+		wpAddAlt = 0; //恢复航线高度
+		return;
+	}
+	switch (avoidState) {
+	case AVOID_BRAKE:
+		if(isAutoMode){ //自动模式
+			//避障策略为悬停并且航线避障次数小于最大次数或者为前避障且航线避障次数小于最大次数
+			if(((frontAvoidSelect == 0) && (avoidCount <= maxAvoidCount)) || (isTriggerDownAvoid && (avoidCount <= maxAvoidCount))){
+				targetPosition.z += avoidClimbAltCM; //爬升高度
+				avoidState = AVOID_CLIMB;
+			}else{ //返航
+				avoidState = AVOID_RTL;
+			}
+		}else{ //返航模式
+			if(avoidCount <= maxRTLAvoidCount){
+				targetPosition.z += avoidClimbAltCM; //爬升高度
+				avoidState = AVOID_CLIMB;
+			}else{
+				//悬停
+			}
+		}
+		return;
+	case AVOID_CLIMB:
+		targetPosition.z += avoidClimbAltCM; //爬升高度
+		if(fabsf(_inav.get_position().z - targetPosition.z) <= 100.0){ //如果当前高度与目标高度相差1米以内，则认为已到达目标高度
+			if(isAutoMode && (!isTriggerDownAvoid)){ //自动模式并且为前避障
+				avoidStartMS = AP_HAL::millis(); //开启悬停计时
+				avoidState = AVOID_WAIT;
+			}else{ //返航模式或者下避障
+				wpAddAlt = avoidCount*avoidClimbAltCM; //增加航线高度
+				isTriggerDownAvoid = false;
+				avoidState = NO_AVOID;
+			}
+		}
+		return;
+	case AVOID_WAIT:
+		targetPosition.z += avoidClimbAltCM; //保持高度
+		if(((AP_HAL::millis() - avoidStartMS)/1000) >= (uint8_t)avoidLoiterSEC){ //如果等待时间超过了预设时间
+			wpAddAlt = avoidClimbAltCM; //增加航线高度
+			avoidStartMS = AP_HAL::millis(); //开启越障计时
+			avoidState = AVOID_OVER;
+		}
+		return;
+	case AVOID_OVER:
+		if((frontRangeFinderDistanceCM <= frontAvoidDistanceCM) || (_rangefinder_alt_cm <= downAvoidDistanceCM) ||
+				(!_rangefinder_healthy) || (!_avoid->proximity_avoidance_enabled())){ //如果在越障途中产生前避障或者下避障或者传感器不健康则返航
+			avoidState = AVOID_RTL; //返航
+		}else if(((AP_HAL::millis() - avoidStartMS)/1000) >= (uint8_t)avoidOverSEC){ //如果越障时间到了预设时间，也就等于越障完毕
+			wpAddAlt = 0; //恢复航线高度
+			avoidState = NO_AVOID;
+		}
+		return;
+	default:
+		return;
+	}
+}
+
 /// advance_wp_target_along_track - move target location along track from origin to destination
 //沿着轨迹从起点移动目标位置到终点
 bool AC_WPNav::advance_wp_target_along_track(float dt)
@@ -349,7 +497,8 @@ bool AC_WPNav::advance_wp_target_along_track(float dt)
     }
 
 	// calculate 3d vector from segment's origin从线段的原点计算三维向量
-	Vector3f curr_delta = (curr_pos - Vector3f(0, 0, terr_offset)) - _origin;
+	//Vector3f curr_delta = (curr_pos - Vector3f(0, 0, terr_offset)) - _origin;
+    Vector3f curr_delta = (curr_pos - Vector3f(0, 0, terr_offset)) - (_origin + Vector3f(0, 0, wpAddAlt)); //更改起点高度
 
 	// calculate how far along the track we are计算我们沿着轨道走了多远
 	track_covered = curr_delta.x * _pos_delta_unit.x  //向量*单位向量投影=向量投影，计算沿轨道的投影
@@ -435,6 +584,7 @@ bool AC_WPNav::advance_wp_target_along_track(float dt)
             _limited_speed_xy_cms = constrain_float(_limited_speed_xy_cms,speed_along_track-linear_velocity,speed_along_track+linear_velocity);
         }
     }
+    checkAvoidXYPositionLimit(); //通过避障控制飞行水平位置
     // advance the current target
     if (!reached_leash_limit) {
     	_track_desired += _limited_speed_xy_cms * dt;//计算下一时刻的目标距离，速度*时间=路程,_track_desired是累加值
@@ -474,9 +624,11 @@ bool AC_WPNav::advance_wp_target_along_track(float dt)
     }
 
     // recalculate the desired position
-    Vector3f final_target = _origin + _pos_delta_unit * _track_desired;//起始航点+（单位向量*模长）
+    //Vector3f final_target = _origin + _pos_delta_unit * _track_desired;//起始航点+（单位向量*模长）
+    Vector3f final_target = (_origin + Vector3f(0, 0, wpAddAlt)) + _pos_delta_unit * _track_desired;//起始航点+（单位向量*模长）;//更改起点高度
     // convert final_target.z to altitude above the ekf origin
     final_target.z += terr_offset;//计算下一时刻目标点的高度
+    checkAvoidZPositionLimit(final_target); //通过避障控制飞行高度
     _pos_control.set_pos_target(final_target);//设定下一时刻目标点，以起飞点为参考点设置目标位置，单位为厘米，通过此函数将计算结果传递给pos_control
 
     // check if we've reached the waypoint
@@ -487,7 +639,8 @@ bool AC_WPNav::advance_wp_target_along_track(float dt)
                 _flags.reached_destination = true;
             }else{
                 // regular waypoints also require the copter to be within the waypoint radius
-                Vector3f dist_to_dest = (curr_pos - Vector3f(0,0,terr_offset)) - _destination; //计算当前坐标点与目标坐标点的三维差值
+                //Vector3f dist_to_dest = (curr_pos - Vector3f(0,0,terr_offset)) - _destination; //计算当前坐标点与目标坐标点的三维差值
+            	Vector3f dist_to_dest = (curr_pos - Vector3f(0,0,terr_offset)) - (_destination + Vector3f(0, 0, wpAddAlt)); //计算当前坐标点与目标坐标点的三维差值;//更改起点高度
                 if( dist_to_dest.length() <= _wp_radius_cm ) {
                     _flags.reached_destination = true;
                 }

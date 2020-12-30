@@ -228,7 +228,7 @@ float Copter::get_non_takeoff_throttle()
 
 float Copter::get_surface_tracking_climb_rate(int16_t target_rate, float current_alt_target, float dt)
 {
-#if RANGEFINDER_ENABLED == ENABLED
+/*#if RANGEFINDER_ENABLED == ENABLED //关闭飞控原有仿地逻辑
     if (!copter.rangefinder_alt_ok()) {
         return target_rate;
     }
@@ -254,9 +254,9 @@ float Copter::get_surface_tracking_climb_rate(int16_t target_rate, float current
 	velocity_correction = constrain_float(velocity_correction, -100, 200);
 	return (target_rate + velocity_correction);
 
-#else
+#else*/
     return (float)target_rate;
-#endif
+//#endif
 }
 
 // get target climb rate reduced to avoid obstacles and altitude fence

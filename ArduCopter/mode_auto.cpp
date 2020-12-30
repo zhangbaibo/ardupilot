@@ -23,6 +23,7 @@
 bool Copter::ModeAuto::init(bool ignore_checks)
 {
     if ((copter.position_ok() && copter.mission.num_commands() > 1) || ignore_checks) {
+    	wp_nav->initAvoidVar(true); //初始化避障参数
         _mode = Auto_Loiter;
 
         // reject switching to auto mode if landed with motors armed but first command is not a takeoff (reduce chance of flips)
@@ -56,6 +57,10 @@ bool Copter::ModeAuto::init(bool ignore_checks)
 //      relies on run_autopilot being called at 10hz which handles decision making and non-navigation related commands
 void Copter::ModeAuto::run()
 {
+	if(wp_nav->avoidState == wp_nav->AVOID_RTL){ //如果目前为避障返航状态
+		copter.set_mode(RTL, MODE_REASON_AVOIDANCE); //切入返航模式
+	}
+
     // call the correct auto controller
     switch (_mode) {
 
@@ -126,7 +131,8 @@ bool Copter::ModeAuto::loiter_start()
 // auto_rtl_start - initialises RTL in AUTO flight mode
 void Copter::ModeAuto::rtl_start()
 {
-    _mode = Auto_RTL;
+	copter.set_mode(RTL, MODE_REASON_MISSION_END); //切入返航模式
+	_mode = Auto_RTL;
 
     // call regular rtl flight mode initialisation and ask it to ignore checks
     copter.mode_rtl.init(true);
