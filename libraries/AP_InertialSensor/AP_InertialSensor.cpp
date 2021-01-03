@@ -770,7 +770,14 @@ AP_InertialSensor::detect_backends(void)
                                                     hal.spi->get_device("bmi055_g"),
                                                     ROTATION_ROLL_180_YAW_90));
         break;
-        
+    case AP_BoardConfig::PX4_BOARD_SEAHAWK:
+	   _fast_sampling_mask.set_default(1);
+	   ADD_BACKEND(AP_InertialSensor_Invensense::probe(*this, hal.spi->get_device("icm20689"), ROTATION_YAW_180));
+	   ADD_BACKEND(AP_InertialSensor_BMI088::probe(*this,
+												   hal.spi->get_device("bmi055_a"),
+												   hal.spi->get_device("bmi055_g"),
+												   ROTATION_ROLL_180));
+	   break;
     case AP_BoardConfig::PX4_BOARD_SP01:
         _fast_sampling_mask.set_default(1);
         ADD_BACKEND(AP_InertialSensor_Invensense::probe(*this, hal.spi->get_device(HAL_INS_MPU9250_EXT_NAME), ROTATION_NONE));

@@ -676,7 +676,7 @@ void Compass::_probe_external_i2c_compasses(void)
     }
     
     // IST8310 on external and internal bus
-    if (AP_BoardConfig::get_board_type() != AP_BoardConfig::PX4_BOARD_FMUV5) {
+    if ((AP_BoardConfig::get_board_type() != AP_BoardConfig::PX4_BOARD_FMUV5) && (AP_BoardConfig::get_board_type() != AP_BoardConfig::PX4_BOARD_SEAHAWK)) {
         FOREACH_I2C_EXTERNAL(i) {
             ADD_BACKEND(DRIVER_IST8310, AP_Compass_IST8310::probe(*this, GET_I2C_DEVICE(i, HAL_COMPASS_IST8310_I2C_ADDR),
                                                                   true, ROTATION_PITCH_180), AP_Compass_IST8310::name, true);
@@ -734,6 +734,7 @@ void Compass::_detect_backends(void)
     case AP_BoardConfig::PX4_BOARD_PIXRACER: 
     case AP_BoardConfig::PX4_BOARD_MINDPXV2: 
     case AP_BoardConfig::PX4_BOARD_FMUV5:
+    case AP_BoardConfig::PX4_BOARD_SEAHAWK:
     case AP_BoardConfig::PX4_BOARD_PIXHAWK_PRO:
         _probe_external_i2c_compasses();
         if (_backend_count == COMPASS_MAX_BACKEND ||
@@ -809,6 +810,16 @@ void Compass::_detect_backends(void)
         FOREACH_I2C_INTERNAL(i) {
             ADD_BACKEND(DRIVER_IST8310, AP_Compass_IST8310::probe(*this, GET_I2C_DEVICE(i, HAL_COMPASS_IST8310_I2C_ADDR),
                                                                   false, ROTATION_ROLL_180_YAW_90), AP_Compass_IST8310::name, false);
+        }
+        break;
+    case AP_BoardConfig::PX4_BOARD_SEAHAWK:
+        FOREACH_I2C_EXTERNAL(i) {
+            ADD_BACKEND(DRIVER_IST8310, AP_Compass_IST8310::probe(*this, GET_I2C_DEVICE(i, HAL_COMPASS_IST8310_I2C_ADDR),
+                                                                  true, ROTATION_ROLL_180_YAW_90), AP_Compass_IST8310::name, true);
+        }
+        FOREACH_I2C_INTERNAL(i) {
+            ADD_BACKEND(DRIVER_IST8310, AP_Compass_IST8310::probe(*this, GET_I2C_DEVICE(i, HAL_COMPASS_IST8310_I2C_ADDR),
+                                                                  false, ROTATION_YAW_180), AP_Compass_IST8310::name, false);
         }
         break;
         
